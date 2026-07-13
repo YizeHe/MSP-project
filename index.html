@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MSP / MST Network</title>
+  <meta name="description" content="Censorship-resistant, end-to-end encrypted decentralized messaging. Economy chain for MST burns; messages over DTN/P2P.">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="index.html">
+        <span class="brand-mark">MSP</span>
+        <span class="brand-text">MST Network</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#about">About</a>
+        <a href="#docs">Docs</a>
+        <a href="#guides">Guides</a>
+        <a href="#start">Get started</a>
+        <a href="https://github.com/YizeHe/MSP-project" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <p class="eyebrow">Open source · MIT · 100% AI-edited</p>
+      <h1>Message Security Protocol</h1>
+      <p class="lead">
+        A censorship-resistant, end-to-end encrypted messaging prototype.
+        The public chain tracks <strong>MST economics and burn proofs only</strong>;
+        message bodies travel exclusively over a <strong>DTN / UDP P2P mesh</strong>.
+        Signaling seeds help with discovery and hole punch—not chat relay.
+      </p>
+      <p class="hero-actions">
+        <a class="btn btn-primary" href="Guide/guide.md">Read the guide</a>
+        <a class="btn btn-secondary" href="https://github.com/YizeHe/MSP-project/tree/dev">View on GitHub</a>
+      </p>
+    </div>
+  </section>
+
+  <main class="wrap">
+    <section id="about" class="block">
+      <h2>What is MSP?</h2>
+      <p>
+        MSP (Message Security Protocol / MST Network) separates three concerns that
+        many networks mix together:
+      </p>
+      <ul class="plain-list">
+        <li><strong>DTN / P2P mesh</strong> — encrypted chat, flood, store-carry-forward, burn-after-read.</li>
+        <li><strong>Public chain</strong> — claim, transfer, burn hashes, register, coinbase from a pre-allocated miner pool (no inflation beyond genesis allocation).</li>
+        <li><strong>Signaling</strong> — Cloudflare Worker or local <code>msp-seed</code> for peer discovery and NAT hole punch only.</li>
+      </ul>
+      <div class="cards">
+        <article class="card">
+          <h3>Tokenomics</h3>
+          <p>Total supply <strong>4,226,880</strong> MST. Free claim: <strong>128</strong> MST × <strong>210</strong> nodes. Miner pool: <strong>4,200,000</strong> MST.</p>
+        </article>
+        <article class="card">
+          <h3>Privacy-minded send</h3>
+          <p>Seal once, burn via a one-time burner address, attach a miner-signed <strong>BurnTicket</strong>, then send over DTN.</p>
+        </article>
+        <article class="card">
+          <h3>Lab-friendly</h3>
+          <p>Go toolchain, local seed, <code>MSP_POW_FAST</code> / <code>MSP_CHAIN_FAST</code> for tests. Version <code>1.3.2-daiban7</code>.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="docs" class="block">
+      <h2>README (languages)</h2>
+      <p>The default project overview is English. Choose a language:</p>
+      <table class="doc-table">
+        <thead>
+          <tr><th>Language</th><th>File</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>English (default)</td><td><a href="README.md">README.md</a></td></tr>
+          <tr><td>中文 (Chinese)</td><td><a href="README-cn.md">README-cn.md</a></td></tr>
+          <tr><td>日本語 (Japanese)</td><td><a href="README-ja.md">README-ja.md</a></td></tr>
+          <tr><td>Français (French)</td><td><a href="README-fr.md">README-fr.md</a></td></tr>
+          <tr><td>Русский (Russian)</td><td><a href="README-ru.md">README-ru.md</a></td></tr>
+          <tr><td>Español (Spanish)</td><td><a href="README-es.md">README-es.md</a></td></tr>
+          <tr><td>العربية (Arabic)</td><td><a href="README-ar.md">README-ar.md</a></td></tr>
+          <tr><td>Deutsch (German)</td><td><a href="README-de.md">README-de.md</a></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="guides" class="block">
+      <h2>User guides</h2>
+      <p>Full install, CLI, dual-node, and troubleshooting tutorials:</p>
+      <ul class="link-list">
+        <li><a href="Guide/guide.md"><strong>Guide/guide.md</strong></a> — English (default)</li>
+        <li><a href="Guide/guide-cn.md"><strong>Guide/guide-cn.md</strong></a> — 中文</li>
+      </ul>
+      <p class="note">
+        Protocol whitepaper (Chinese): <a href="MSP白皮书.md">MSP白皮书.md</a>.
+        Design dialog: <a href="msp-design-dialog.txt">msp-design-dialog.txt</a>.
+      </p>
+    </section>
+
+    <section id="start" class="block">
+      <h2>Get started</h2>
+      <pre class="code"><code>git clone https://github.com/YizeHe/MSP-project.git
+cd MSP-project
+git checkout dev
+
+go build -o bin/msp ./cmd/msp
+go build -o bin/msp-seed ./cmd/msp-seed
+
+./bin/msp -c init
+./bin/msp -c start</code></pre>
+      <p>
+        Windows users can build <code>bin/msp.exe</code> the same way.
+        See <a href="bin/README.md">bin/README.md</a> for local binary layout (executables are not committed).
+      </p>
+    </section>
+
+    <section class="block">
+      <h2>License</h2>
+      <p>
+        Released under the <a href="LICENSE">MIT License</a>.
+        Research / prototype software — no mainnet asset guarantees.
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p>© 2026 YizeHe / MSP-project contributors · <a href="LICENSE">MIT</a></p>
+      <p class="footer-links">
+        <a href="README.md">README</a> ·
+        <a href="Guide/guide.md">Guide</a> ·
+        <a href="https://github.com/YizeHe/MSP-project">GitHub</a>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

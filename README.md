@@ -18,6 +18,7 @@ A **100% AI-edited** censorship-resistant, end-to-end encrypted messaging protot
 
 | Doc | Language |
 |-----|----------|
+| **[index.html](index.html)** | Project landing page (English) |
 | **[Guide/guide.md](Guide/guide.md)** | English (default) |
 | **[Guide/guide-cn.md](Guide/guide-cn.md)** | 中文 |
 | [MSP白皮书.md](MSP白皮书.md) | Protocol whitepaper (Chinese) |
