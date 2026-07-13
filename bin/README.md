@@ -29,6 +29,8 @@ go build -o bin/msp-p2p-test ./cmd/msp-p2p-test
 | `msp-seed` / `msp-seed.exe` | 本地信令种子（打洞，不中继消息） |
 | `msp-p2p-test` / `msp-p2p-test.exe` | 双节点 P2P 冒烟测试 |
 
-## 使用文档
+## Docs
 
-完整教程见 **[../Guide/guide.md](../Guide/guide.md)**。
+- English (default): **[../Guide/guide.md](../Guide/guide.md)**  
+- 中文: **[../Guide/guide-cn.md](../Guide/guide-cn.md)**  
+- License: **[MIT](../LICENSE)**

@@ -1,64 +1,86 @@
 # MSP / MST Network
 
-**100% AI-edited** 去中心化消息网络原型：公链只记账与 burn 凭证，消息 100% 走 DTN/P2P。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](go.mod)
+[![100% AI-edited](https://img.shields.io/badge/100%25-AI--edited-purple)](Guide/guide.md)
 
-| | |
-|--|--|
-| **版本** | `1.3.2-daiban7` |
-| **分支** | 开发请用 `dev` |
-| **使用教程** | **[Guide/guide.md](Guide/guide.md)** ← 从这里开始 |
-| **本地二进制** | 构建到 [`bin/`](bin/README.md)（可执行文件 **不** 入库） |
+**English** | [中文](README-cn.md) | [日本語](README-ja.md) | [Français](README-fr.md) | [Русский](README-ru.md) | [Español](README-es.md) | [العربية](README-ar.md) | [Deutsch](README-de.md)
 
-## 一句话架构
+A **100% AI-edited** censorship-resistant, end-to-end encrypted messaging prototype.
+
+| Layer | Role |
+|-------|------|
+| **DTN / UDP P2P mesh** | Encrypted messages, flood, store-carry-forward |
+| **Public chain** | MST ledger + burn proofs only (no message bodies) |
+| **Signaling seed** | Peer discovery & **hole punch** only (no chat relay) |
+
+## Documentation
+
+| Doc | Language |
+|-----|----------|
+| **[Guide/guide.md](Guide/guide.md)** | English (default) |
+| **[Guide/guide-cn.md](Guide/guide-cn.md)** | 中文 |
+| [MSP白皮书.md](MSP白皮书.md) | Protocol whitepaper (Chinese) |
+| `代办.md` … `代办7.md` | Iteration specs (AI collaboration traces, kept in-repo) |
+
+## Version
+
+`1.3.2-daiban7` — prefer branch **`dev`**.
+
+## One-line architecture
 
 ```
-密封密文 → burner 匿名 burn → BurnTicket → DTN 发送
-公链：MST 账本 + burn 哈希 · 信令：仅打洞
+Seal ciphertext → anonymous burner burn → BurnTicket → DTN send
+Chain: MST ledger + burn hash · Signaling: hole punch only
 ```
 
-| 层 | 职责 |
-|----|------|
-| **公链** | claim / transfer / burn / register / coinbase |
-| **DTN** | E2EE 消息、泛洪、离线转发 + BurnTicket |
-| **信令** | CF / 本地 seed 打洞（无消息中继） |
+## Tokenomics (代办6)
 
-## 代币（代办6）
+| Parameter | Value |
+|-----------|-------|
+| Total supply (no inflation) | **4,226,880** MST |
+| Free claim pool | **26,880** (210 nodes × **128** MST) |
+| Miner reward pool | **4,200,000** MST |
+| Claim window | 2 years |
 
-| 参数 | 值 |
-|------|-----|
-| 总量 | 4,226,880 MST（不增发） |
-| 认领 | 128 MST × 210 节点 |
-| 矿工池 | 4,200,000 MST |
+Message burn costs (approx.): direct 2+1 · dtn 10+1 · broadcast 5+1 · alert 20+1 MST.
 
-## 快速构建
+## Quick start
 
 ```powershell
+# Build into bin/ (binaries are gitignored)
 go build -o bin/msp.exe ./cmd/msp
 go build -o bin/msp-seed.exe ./cmd/msp-seed
-$env:MSP_POW_FAST=1; $env:MSP_CHAIN_FAST=1
+
+$env:MSP_POW_FAST = "1"
+$env:MSP_CHAIN_FAST = "1"
 .\bin\msp.exe -c init
 .\bin\msp.exe -c start
+.\bin\msp.exe -c claim-genesis   # optional local DTN wallet +128
+.\bin\msp.exe -c chain-claim     # on-chain +128 (max 210 slots)
 ```
 
-完整步骤、双节点互发、CLI 手册、故障排除 → **[Guide/guide.md](Guide/guide.md)**。
+Linux / macOS:
 
-## 测试
+```bash
+go build -o bin/msp ./cmd/msp
+go build -o bin/msp-seed ./cmd/msp-seed
+./bin/msp -c init && ./bin/msp -c start
+```
+
+Full tutorial (CLI, dual-node, troubleshooting): **[Guide/guide.md](Guide/guide.md)**.
+
+## Tests
 
 ```powershell
-$env:MSP_POW_FAST=1; $env:MSP_CHAIN_FAST=1
+$env:MSP_POW_FAST = "1"; $env:MSP_CHAIN_FAST = "1"
 go test ./... -count=1 -timeout 180s
 ```
 
-## 文档与 AI 痕迹
-
-本项目明确保留全部 AI 协作产物（**不** 忽略 `代办*.md`、`.learnings/`、`.claude/`）：
-
-- `Guide/guide.md` — 用户指南  
-- `MSP白皮书.md` — 协议  
-- `代办.md` … `代办7.md` — 迭代规格  
-- `.learnings/` — 经验与错误记录  
-- `msp-design-dialog.txt` — 设计对话  
-
 ## License
 
-TBD
+[MIT](LICENSE) © 2026 YizeHe / MSP-project contributors.
+
+## Project ethos
+
+This repository proudly ships as **100% AI-edited**: specs (`代办*`), `.learnings/`, and agent traces are **not** scrubbed from history.
