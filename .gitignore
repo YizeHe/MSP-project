@@ -55,7 +55,7 @@ temp/
 *.cache
 .cache/
 
-# --- Node / JS ---
+# --- Node / JS / Cloudflare local ---
 node_modules/
 .npm
 .yarn/
@@ -70,6 +70,7 @@ out/
 .turbo/
 .vercel/
 .output/
+.wrangler/
 coverage/
 .nyc_output/
 *.tsbuildinfo
@@ -103,21 +104,26 @@ target/
 *.war
 *.ear
 .gradle/
-build/
-out/
-.idea/
 *.iml
 *.ipr
 *.iws
 
-# --- Go ---
-bin/
+# --- Go binaries (never commit executables) ---
 *.exe
 *.exe~
 *.dll
+*.so
+*.dylib
 *.test
 *.out
 vendor/
+# bin/ holds local builds; keep README only
+bin/*
+!bin/README.md
+!bin/.gitkeep
+/msp
+/msp-seed
+/msp-p2p-test
 
 # --- Rust ---
 /target/
@@ -129,9 +135,6 @@ Cargo.lock.bak
 *.obj
 *.a
 *.lib
-*.so
-*.dylib
-*.dll
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
@@ -142,17 +145,38 @@ docker-compose.override.yml
 .docker/
 
 # --- Test / coverage ---
-coverage/
 *.lcov
-.nyc_output/
 test-results/
 playwright-report/
 blob-report/
 
-# --- Misc local ---
+# --- Misc local tooling (keep .claude / .learnings — 100% AI-edited project) ---
 *.local
 .local/
 .direnv/
-.claude/
 .grok/
-.learnings/
+
+# --- MSP runtime data (never commit keys / chain state) ---
+msp-data/
+msp-data-*/
+
+# --- Local ops dumps (not product source) ---
+curl-*.txt
+deploy-*.txt
+redeploy.txt
+dns-check.txt
+dns-records.json
+cf-domains.txt
+cf-zones.txt
+zones-api.json
+https-setting.json
+ssl-setting.json
+routes.txt
+help-deploy.txt
+triggers-help.txt
+wrangler-help.txt
+wrangler-whoami.txt
+whoami-out.txt
+dep.txt
+dep-list.txt
+dist-check/

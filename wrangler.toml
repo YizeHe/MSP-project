@@ -1,0 +1,21 @@
+name = "msp-seed"
+main = "_worker.js"
+compatibility_date = "2024-11-01"
+
+# Custom domain (zone forbiddenx.top is on this CF account).
+# Prefer custom domain over *.workers.dev for broader reach (incl. CN clients).
+routes = [
+  { pattern = "msp.forbiddenx.top", custom_domain = true }
+]
+
+workers_dev = true
+
+# Shared flood hub — required so all edge isolates share peers/packets.
+[[durable_objects.bindings]]
+name = "HUB"
+class_name = "MspHub"
+
+# Free plan requires SQLite-backed DO classes.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MspHub"]

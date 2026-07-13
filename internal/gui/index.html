@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MSP Network</title>
+<style>
+:root { --bg:#0f1419; --card:#1a2332; --acc:#3d9cf0; --ok:#3dd68c; --err:#f07178; --tx:#e7ecf3; --mut:#8b9bb4; }
+* { box-sizing:border-box; }
+body { margin:0; font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--tx); }
+header { padding:16px 24px; border-bottom:1px solid #243044; display:flex; align-items:center; gap:16px; }
+header h1 { margin:0; font-size:18px; font-weight:600; }
+header .badge { font-size:12px; color:var(--mut); }
+main { display:grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 58px); }
+nav { border-right:1px solid #243044; padding:12px; }
+nav button { display:block; width:100%; text-align:left; background:transparent; border:0; color:var(--tx); padding:10px 12px; border-radius:8px; cursor:pointer; margin-bottom:4px; }
+nav button.active, nav button:hover { background:var(--card); }
+section { display:none; padding:20px 24px; }
+section.active { display:block; }
+.card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:16px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; }
+input, textarea { background:#0d121a; border:1px solid #2a3a52; color:var(--tx); border-radius:8px; padding:8px 10px; min-width:200px; }
+textarea { width:100%; min-height:80px; }
+button.act { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-weight:600; }
+button.ghost { background:#243044; color:var(--tx); border:0; border-radius:8px; padding:8px 14px; cursor:pointer; }
+pre, .mono { font-family: ui-monospace, Consolas, monospace; font-size:12px; white-space:pre-wrap; word-break:break-all; }
+.msg { border-left:3px solid var(--acc); padding:8px 12px; margin:8px 0; background:#121a26; border-radius:0 8px 8px 0; }
+label { font-size:12px; color:var(--mut); display:block; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MSP Network</h1>
+  <span class="badge">v0.3 · GUI + CLI (msp -c)</span>
+  <span id="runstate" class="badge">mesh: stopped</span>
+</header>
+<main>
+  <nav>
+    <button class="active" data-tab="overview">概览</button>
+    <button data-tab="identity">身份</button>
+    <button data-tab="seeds">种子 / 信令</button>
+    <button data-tab="mesh">网络 / 邻居</button>
+    <button data-tab="chat">消息</button>
+    <button data-tab="trust">信任 / 指纹</button>
+  </nav>
+  <div style="overflow:auto">
+    <section id="overview" class="active">
+      <div class="card">
+        <div class="row">
+          <button class="act" onclick="api('start','POST')">启动 Mesh</button>
+          <button class="ghost" onclick="api('stop','POST')">停止</button>
+          <button class="ghost" onclick="refreshStatus()">刷新状态</button>
+        </div>
+        <pre id="status" class="mono">loading…</pre>
+      </div>
+      <div class="card">
+        <label>CLI 等价调用</label>
+        <pre class="mono">msp -c start
+msp -c status
+msp -c send &lt;node_id&gt; hello
+msp -c inbox</pre>
+      </div>
+    </section>
+    <section id="identity">
+      <div class="card">
+        <div class="row">
+          <button class="act" onclick="doInit()">生成身份</button>
+          <button class="ghost" onclick="loadIdentity()">查看身份</button>
+        </div>
+        <pre id="ident" class="mono"></pre>
+      </div>
+    </section>
+    <section id="seeds">
+      <div class="card">
+        <label>Seed URL（CF 仅打洞信令）</label>
+        <div class="row">
+          <input id="seedurl" placeholder="https://msp.forbiddenx.top" style="flex:1"/>
+          <button class="act" onclick="setSeed()">设为 Primary</button>
+          <button class="ghost" onclick="addSeed()">添加</button>
+          <button class="ghost" onclick="health()">Health</button>
+        </div>
+        <pre id="seedlist" class="mono"></pre>
+        <pre id="healthout" class="mono"></pre>
+      </div>
+    </section>
+    <section id="mesh">
+      <div class="card">
+        <div class="row">
+          <button class="act" onclick="api('discover','POST').then(loadPeers)">Discover / 打洞</button>
+          <button class="ghost" onclick="loadPeers()">刷新邻居</button>
+        </div>
+        <pre id="peers" class="mono"></pre>
+      </div>
+    </section>
+    <section id="chat">
+      <div class="card">
+        <label>单播 Node ID</label>
+        <input id="toid" style="width:100%"/>
+        <label>消息</label>
+        <textarea id="msg"></textarea>
+        <div class="row">
+          <button class="act" onclick="sendMsg()">发送单播</button>
+          <button class="ghost" onclick="broadcastMsg()">广播</button>
+          <button class="ghost" onclick="loadInbox()">刷新收件箱</button>
+          <button class="ghost" onclick="clearInbox()">清空（擦除）</button>
+        </div>
+      </div>
+      <div class="card" id="inbox"></div>
+    </section>
+    <section id="trust">
+      <div class="card">
+        <label>校验指纹</label>
+        <div class="row">
+          <input id="vid" placeholder="node_id"/>
+          <input id="vfp" placeholder="16-char fingerprint"/>
+          <button class="act" onclick="verifyFP()">验证</button>
+        </div>
+        <pre id="trustlist" class="mono"></pre>
+      </div>
+    </section>
+  </div>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>
