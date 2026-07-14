@@ -261,7 +261,8 @@ func (s *Service) StartMesh() error {
 		}
 		return chain.ValidateBurnTicket(t, payloadCipher, eng.HasTxHash, time.Now())
 	}
-	eng.StartMiner(false)
+	// Mine empty blocks for coinbase (mainnet miner income); still only when interval ticks.
+	eng.StartMiner(true)
 	s.Chain = eng
 	s.Node = n
 	return nil

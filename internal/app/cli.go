@@ -80,14 +80,15 @@ func RunCLI(dataDir string, args []string) int {
 	case "status":
 		b, _ := json.MarshalIndent(svc.Status(), "", "  ")
 		fmt.Println(string(b))
-	case "start", "join", "run-headless":
+	case "start", "join", "run-headless", "mine":
 		runErr = svc.StartMesh()
 		if runErr == nil {
-			fmt.Println("mesh started")
+			fmt.Println("mesh started (miner on; empty blocks → coinbase)")
 			fmt.Printf("node_id=%s udp=%v neighbors=%v\n",
 				svc.ID.NodeID, svc.Status()["udp_port"], svc.Status()["p2p_neighbors"])
-			if cmd == "run-headless" {
-				// keep alive until killed
+			// start exits after join; mine/run-headless keep process alive for continuous mining
+			if cmd == "run-headless" || cmd == "mine" {
+				fmt.Println("headless miner running — Ctrl+C to stop")
 				select {}
 			}
 		}
