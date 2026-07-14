@@ -31,13 +31,14 @@ label { font-size:12px; color:var(--mut); display:block; margin-bottom:4px; }
 <body>
 <header>
   <h1>MSP Network</h1>
-  <span class="badge">v0.3 · GUI + CLI (msp -c)</span>
+  <span class="badge">mainnet-2 · PoS · GUI + CLI</span>
   <span id="runstate" class="badge">mesh: stopped</span>
 </header>
 <main>
   <nav>
     <button class="active" data-tab="overview">概览</button>
     <button data-tab="identity">身份</button>
+    <button data-tab="wallet">钱包 / 转账</button>
     <button data-tab="seeds">种子 / 信令</button>
     <button data-tab="mesh">网络 / 邻居</button>
     <button data-tab="chat">消息</button>
@@ -68,6 +69,39 @@ msp -c inbox</pre>
           <button class="ghost" onclick="loadIdentity()">查看身份</button>
         </div>
         <pre id="ident" class="mono"></pre>
+      </div>
+    </section>
+    <section id="wallet">
+      <div class="card">
+        <label>链上钱包（msp-mainnet-2 · MST）</label>
+        <div class="row">
+          <button class="act" onclick="loadChain()">刷新余额</button>
+          <button class="ghost" onclick="chainMine()">提议出块</button>
+          <button class="ghost" onclick="chainActivate()">激活验证者</button>
+        </div>
+        <pre id="chainbal" class="mono">点击「刷新余额」加载…</pre>
+      </div>
+      <div class="card">
+        <label>转账（链上 MST，手续费 1 MST）</label>
+        <label>收款方 Node ID</label>
+        <input id="xferto" placeholder="对方完整 node_id（40 位 hex）" style="width:100%"/>
+        <label>金额（整数 MST）</label>
+        <div class="row">
+          <input id="xferamt" type="number" min="1" step="1" placeholder="10" style="width:140px"/>
+          <button class="act" onclick="doTransfer()">确认转账</button>
+        </div>
+        <p style="font-size:12px;color:var(--mut);margin:8px 0 0">
+          你的账户将减少「金额 + 1 手续费」。需先启动 Mesh / 本机可出块打包交易。
+          CLI 等价：<span class="mono">msp -c chain-transfer &lt;to&gt; &lt;amount&gt;</span>
+        </p>
+        <pre id="xferout" class="mono"></pre>
+      </div>
+      <div class="card">
+        <label>质押（可选，增加 PoS 权重）</label>
+        <div class="row">
+          <input id="stakeamt" type="number" min="1" step="1" placeholder="50" style="width:140px"/>
+          <button class="act" onclick="doStake()">质押</button>
+        </div>
       </div>
     </section>
     <section id="seeds">

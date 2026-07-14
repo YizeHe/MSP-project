@@ -225,6 +225,66 @@ func handleAPI(w http.ResponseWriter, r *http.Request, svc *app.Service) {
 		writeOK(map[string]string{"ok": "1"})
 	case path == "trust" && r.Method == http.MethodGet:
 		writeOK(svc.TrustList())
+	case path == "chain" && r.Method == http.MethodGet:
+		// Ensure mesh so chain status is available
+		if err := svc.EnsureMesh(); err != nil {
+			writeErr(err)
+			return
+		}
+		writeOK(svc.ChainStatus())
+	case path == "chain/transfer" && r.Method == http.MethodPost:
+		var body struct {
+			To     string `json:"to"`
+			Amount uint64 `json:"amount"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeErr(err)
+			return
+		}
+		body.To = strings.TrimSpace(body.To)
+		if body.To == "" || body.Amount == 0 {
+			writeErr(fmt.Errorf("to and amount required (amount is integer MST)"))
+			return
+		}
+		if err := svc.ChainTransfer(body.To, body.Amount); err != nil {
+			writeErr(err)
+			return
+		}
+		writeOK(map[string]any{"ok": true, "to": body.To, "amount": body.Amount})
+	case path == "chain/mine" && r.Method == http.MethodPost:
+		// GUI / solo operators: force propose when eligible (bootstrap-friendly)
+		b, err := svc.ChainMine(true)
+		if err != nil {
+			writeErr(err)
+			return
+		}
+		writeOK(map[string]any{
+			"ok":     true,
+			"height": b.Header.Height,
+			"slot":   b.Header.Slot,
+			"hash":   b.Header.HashHex(),
+			"txs":    len(b.Txs),
+		})
+	case path == "chain/stake" && r.Method == http.MethodPost:
+		var body struct {
+			Amount uint64 `json:"amount"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Amount == 0 {
+			writeErr(fmt.Errorf("amount required"))
+			return
+		}
+		if err := svc.ChainStake(body.Amount); err != nil {
+			writeErr(err)
+			return
+		}
+		writeOK(map[string]any{"ok": true, "amount": body.Amount})
+	case path == "chain/activate" && r.Method == http.MethodPost:
+		if err := svc.ChainActivate(); err != nil {
+			writeErr(err)
+			return
+		}
+		writeOK(map[string]string{"ok": "1"})
 	default:
 		w.WriteHeader(404)
 		writeErr(fmt.Errorf("not found: %s", path))
