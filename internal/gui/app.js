@@ -12,12 +12,50 @@ document.querySelectorAll("nav button").forEach((b) => {
 
 async function api(path, method = "GET", body) {
   const opt = { method, headers: { "Content-Type": "application/json" } };
-  if (body) opt.body = JSON.stringify(body);
-  const r = await fetch("/api/" + path, opt);
-  const j = await r.json();
-  if (j.error) {
-    alert(j.error);
-    throw new Error(j.error);
+  if (body !== undefined && body !== null) {
+    opt.body = JSON.stringify(body);
+  }
+  let r;
+  try {
+    r = await fetch("/api/" + path, opt);
+  } catch (e) {
+    const msg = "network error: " + e;
+    alert(msg);
+    throw new Error(msg);
+  }
+  const text = await r.text();
+  let j = null;
+  if (text && text.trim() !== "") {
+    try {
+      j = JSON.parse(text);
+    } catch (e) {
+      const msg = "invalid JSON (HTTP " + r.status + "): " + text.slice(0, 180);
+      alert(msg);
+      throw new Error(msg);
+    }
+  }
+  // empty body → treat as {}
+  if (j === null || j === undefined) {
+    j = {};
+  }
+  // inbox returns a JSON array
+  if (Array.isArray(j)) {
+    if (!r.ok) {
+      const msg = "HTTP " + r.status;
+      alert(msg);
+      throw new Error(msg);
+    }
+    return j;
+  }
+  if (typeof j !== "object") {
+    const msg = "unexpected response type";
+    alert(msg);
+    throw new Error(msg);
+  }
+  if (j.error || !r.ok) {
+    const msg = j.error || "HTTP " + r.status;
+    alert(msg);
+    throw new Error(msg);
   }
   return j;
 }
@@ -80,37 +118,54 @@ async function loadPeers() {
 }
 
 async function sendMsg() {
-  const j = await api("send", "POST", {
-    to: $("toid").value.trim(),
-    text: $("msg").value,
-  });
-  alert("sent " + j.sha1);
-  loadInbox();
+  try {
+    const to = $("toid").value.trim();
+    const text = $("msg").value;
+    if (!to || !text) {
+      alert("请填写对方 Node ID 和消息内容");
+      return;
+    }
+    const j = await api("send", "POST", { to, text });
+    alert("sent " + (j.sha1 || "ok"));
+    await loadInbox();
+  } catch (e) {
+    // api() already alerted; avoid uncaught rejection
+  }
 }
 async function broadcastMsg() {
-  const j = await api("broadcast", "POST", { text: $("msg").value });
-  alert("broadcast " + j.sha1);
-  loadInbox();
+  try {
+    const j = await api("broadcast", "POST", { text: $("msg").value });
+    alert("broadcast " + (j.sha1 || "ok"));
+    await loadInbox();
+  } catch (e) {}
 }
 async function loadInbox() {
-  const rows = await api("inbox");
-  $("inbox").innerHTML =
-    (rows || [])
-      .map(
-        (m) =>
-          '<div class="msg"><b>' +
-          m.tag +
-          '</b> from <span class="mono">' +
-          m.from +
-          "</span><br/>" +
-          escapeHtml(m.text) +
-          "</div>"
-      )
-      .join("") || '<div class="badge">empty</div>';
+  try {
+    const rows = await api("inbox");
+    const list = Array.isArray(rows) ? rows : [];
+    $("inbox").innerHTML =
+      list
+        .map(
+          (m) =>
+            '<div class="msg"><b>' +
+            (m.tag || "dm") +
+            '</b> from <span class="mono">' +
+            (m.from || "") +
+            "</span><br/>" +
+            escapeHtml(m.text || "") +
+            "</div>"
+        )
+        .join("") || '<div class="badge">empty</div>';
+  } catch (e) {
+    $("inbox").innerHTML =
+      '<div class="badge">inbox unavailable: ' + escapeHtml(String(e)) + "</div>";
+  }
 }
 async function clearInbox() {
-  await api("inbox/clear", "POST");
-  loadInbox();
+  try {
+    await api("inbox/clear", "POST");
+    await loadInbox();
+  } catch (e) {}
 }
 async function verifyFP() {
   await api("verify", "POST", {
@@ -222,7 +277,9 @@ function escapeHtml(s) {
   );
 }
 
-refreshStatus();
-loadSeeds();
+refreshStatus().catch(() => {});
+loadSeeds().catch(() => {});
 loadIdentity().catch(() => {});
-setInterval(refreshStatus, 4000);
+setInterval(() => {
+  refreshStatus().catch(() => {});
+}, 4000);
