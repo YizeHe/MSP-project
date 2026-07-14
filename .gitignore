@@ -159,6 +159,7 @@ blob-report/
 # --- MSP runtime data (never commit keys / chain state) ---
 msp-data/
 msp-data-*/
+msp-mainnet-data/
 
 # --- Local ops dumps (not product source) ---
 curl-*.txt
