@@ -1,65 +1,22 @@
 # MSP / MST Network
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](go.mod)
-[![100% AI-edited](https://img.shields.io/badge/100%25-AI--edited-purple)](Guide/guide.md)
 
 [English](README.md) | [中文](README-cn.md) | [日本語](README-ja.md) | [Français](README-fr.md) | **Русский** | [Español](README-es.md) | [العربية](README-ar.md) | [Deutsch](README-de.md)
 
-Прототип децентрализованного обмена сообщениями с сквозным шифрованием и устойчивостью к цензуре. Проект **100% AI-edited**.
+Цензуроустойчивый E2EE-мессенджер + экономическая цепь **PoS** (**msp-mainnet-2**). Сообщения — DTN/UDP; в цепи только реестр MST. **Без бесплатного claim**. Слот **10 минут**. Подробности: [README.md](README.md) и [MAINNET.md](MAINNET.md).
 
-| Слой | Назначение |
-|------|------------|
-| **DTN / UDP P2P mesh** | Шифрованные сообщения, flood, store-carry-forward |
-| **Публичный блокчейн** | Только реестр MST и burn-доказательства (без тел сообщений) |
-| **Сигналинг-сид** | Обнаружение пиров и **hole punch** (без ретрансляции чата) |
+**Версия:** `2.0.0-mainnet-pos` · **Chain ID:** `msp-mainnet-2`
 
-## Документация
-
-| Документ | Язык |
-|----------|------|
-| **[Guide/guide.md](Guide/guide.md)** | Английский (по умолчанию) |
-| **[Guide/guide-cn.md](Guide/guide-cn.md)** | Китайский |
-| [MSP白皮书.md](MSP白皮书.md) | Белая книга (китайский) |
-
-## Версия
-
-`1.3.2-daiban7` — ветка разработки **`dev`**.
-
-## Архитектура в одну строку
-
-```
-Запечатать ciphertext → анонимный burn (burner) → BurnTicket → отправка DTN
-Цепь: реестр MST + hash burn · Сигналинг: только hole punch
+```bash
+git checkout dev
+go build -o bin/msp ./cmd/msp
+export MSP_DATA=./msp-mainnet-data-v2
+./bin/msp -c init && ./bin/msp -c mine
 ```
 
-## Токеномика
-
-| Параметр | Значение |
-|----------|----------|
-| Общая эмиссия (без инфляции) | **4 226 880** MST |
-| Пул бесплатных claim | **26 880** (210 узлов × **128** MST) |
-| Пул наград майнеров | **4 200 000** MST |
-
-## Быстрый старт
-
-```powershell
-go build -o bin/msp.exe ./cmd/msp
-go build -o bin/msp-seed.exe ./cmd/msp-seed
-$env:MSP_POW_FAST = "1"; $env:MSP_CHAIN_FAST = "1"
-.\bin\msp.exe -c init
-.\bin\msp.exe -c start
-```
-
-Полное руководство: **[Guide/guide.md](Guide/guide.md)**.
-
-## Тесты
-
-```powershell
-$env:MSP_POW_FAST = "1"; $env:MSP_CHAIN_FAST = "1"
-go test ./... -count=1 -timeout 180s
-```
+Seed вручную: `msp -c seed set <url>`. Свой seed: `msp-seed -addr 0.0.0.0:8787`.
 
 ## Лицензия
 
-[MIT](LICENSE) © 2026 YizeHe / участники MSP-project.
+[MIT](LICENSE)
