@@ -24,9 +24,16 @@ A **100% AI-edited** censorship-resistant, end-to-end encrypted messaging protot
 | [MSP白皮书.md](MSP白皮书.md) | Protocol whitepaper (Chinese) |
 | `代办.md` … `代办7.md` | Iteration specs (AI collaboration traces, kept in-repo) |
 
-## Version
+## Version / Mainnet
 
-`1.3.2-daiban7` — prefer branch **`dev`**.
+`1.4.0-mainnet` — prefer branch **`dev`**.
+
+| | |
+|--|--|
+| **Network** | `mainnet` |
+| **Chain ID** | `msp-mainnet-1` |
+| **Genesis** | [`genesis/mainnet.json`](genesis/mainnet.json) · [`MAINNET.md`](MAINNET.md) |
+| **CLI** | `msp -c chain-genesis` |
 
 ## One-line architecture
 

@@ -17,11 +17,11 @@ func ValidateBlock(b *Block, prev *BlockHeader) error {
 		return errBadMerkle
 	}
 	if prev == nil {
-		// genesis
+		// genesis — must match frozen mainnet
 		if b.Header.Height != 0 {
 			return errBadHeight
 		}
-		return nil
+		return ValidateMainnetGenesis(b)
 	}
 	if b.Header.PrevBlock != prev.HashHex() {
 		return errBadPrev

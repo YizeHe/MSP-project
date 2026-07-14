@@ -101,6 +101,19 @@ func (s *State) applyTxLocked(tx *Transaction, blockTime time.Time, height uint6
 	switch tx.Type {
 	case TxInitAlert:
 		return nil
+	case TxNetworkParams:
+		// height-0 only; parameters are constants — accept if well-formed
+		if height != 0 {
+			return fmt.Errorf("network_params only allowed at height 0")
+		}
+		var d NetworkParamsData
+		if err := json.Unmarshal(tx.Data, &d); err != nil {
+			return err
+		}
+		if d.ChainID != ChainID || d.Name != NetworkName {
+			return fmt.Errorf("network params chain_id/name mismatch")
+		}
+		return nil
 	case TxCoinbase:
 		return s.applyCoinbase(tx, height)
 	case TxGenesisClaim:

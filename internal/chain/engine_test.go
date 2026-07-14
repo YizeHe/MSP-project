@@ -274,6 +274,42 @@ func TestCoinbasePool(t *testing.T) {
 	}
 }
 
+func TestMainnetGenesis(t *testing.T) {
+	g := MainnetGenesis()
+	if err := ValidateMainnetGenesis(g); err != nil {
+		t.Fatal(err)
+	}
+	if g.Header.Height != 0 {
+		t.Fatal("height")
+	}
+	if g.Header.HashHex() != MainnetGenesisHash {
+		t.Fatalf("hash %s want frozen %s", g.Header.HashHex(), MainnetGenesisHash)
+	}
+	if len(g.Txs) != 2 {
+		t.Fatalf("txs %d", len(g.Txs))
+	}
+	if g.Txs[0].Type != TxNetworkParams || g.Txs[1].Type != TxInitAlert {
+		t.Fatalf("tx types %s %s", g.Txs[0].Type, g.Txs[1].Type)
+	}
+	info := GenesisInfo()
+	if info["chain_id"] != ChainID || info["network"] != NetworkName {
+		t.Fatalf("info %+v", info)
+	}
+	// OpenEngine installs genesis
+	e, _ := openTestEngine(t)
+	g0 := e.Store.GetByHeight(0)
+	if err := ValidateMainnetGenesis(g0); err != nil {
+		t.Fatal(err)
+	}
+	st := e.Status()
+	if st["network"] != NetworkName || st["chain_id"] != ChainID {
+		t.Fatalf("status %+v", st)
+	}
+	if st["genesis_hash"] != g.Header.HashHex() {
+		t.Fatalf("genesis_hash %v", st["genesis_hash"])
+	}
+}
+
 func TestMaxClaimNodesCap(t *testing.T) {
 	// Unit-level: state rejects claims beyond MaxClaimNodes without full mine loop.
 	st := NewState()

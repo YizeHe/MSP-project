@@ -27,7 +27,7 @@ type Engine struct {
 	mining  bool
 }
 
-// OpenEngine loads or creates genesis.
+// OpenEngine loads or creates the mainnet genesis (msp-mainnet-1).
 func OpenEngine(dir string, id *identity.Identity) (*Engine, error) {
 	st, err := OpenStore(dir)
 	if err != nil {
@@ -37,16 +37,29 @@ func OpenEngine(dir string, id *identity.Identity) (*Engine, error) {
 		ID: id, Store: st, State: NewState(), Mempool: NewMempool(5000),
 		Log: func(string) {}, stop: make(chan struct{}),
 	}
+	// self-check: BuildGenesis is the sole source of truth
+	canon := MainnetGenesis()
+	if err := ValidateMainnetGenesis(canon); err != nil {
+		return nil, fmt.Errorf("internal genesis: %w", err)
+	}
 	if st.Tip() == nil {
-		g := BuildGenesis()
+		g := MainnetGenesis()
 		if err := e.State.ApplyBlock(g); err != nil {
 			return nil, err
 		}
 		if err := st.Append(g); err != nil {
 			return nil, err
 		}
-		e.Log("genesis block created (economy-only chain)")
+		e.Log(fmt.Sprintf("mainnet genesis installed network=%s chain_id=%s hash=%s",
+			NetworkName, ChainID, g.Header.HashHex()[:16]))
 	} else {
+		g0 := st.GetByHeight(0)
+		if g0 == nil {
+			return nil, fmt.Errorf("missing genesis block at height 0")
+		}
+		if err := ValidateMainnetGenesis(g0); err != nil {
+			return nil, fmt.Errorf("stored chain is not %s: %w — use a fresh MSP_DATA or migrate", ChainID, err)
+		}
 		for h := uint64(0); h <= st.Height(); h++ {
 			b := st.GetByHeight(h)
 			if b == nil {
@@ -56,7 +69,7 @@ func OpenEngine(dir string, id *identity.Identity) (*Engine, error) {
 				return nil, fmt.Errorf("replay %d: %w", h, err)
 			}
 		}
-		e.Log(fmt.Sprintf("chain loaded tip=%d", st.Height()))
+		e.Log(fmt.Sprintf("mainnet chain loaded tip=%d network=%s", st.Height(), NetworkName))
 	}
 	return e, nil
 }
@@ -84,10 +97,17 @@ func (e *Engine) Status() map[string]any {
 		h = tip.Header.Height
 	}
 	acc := e.State.GetAccount(e.ID.NodeID)
+	gHash := ""
+	if g0 := e.Store.GetByHeight(0); g0 != nil {
+		gHash = g0.Header.HashHex()
+	}
 	return map[string]any{
+		"network":              NetworkName,
+		"chain_id":             ChainID,
 		"mode":                 "economy-only",
 		"height":               h,
 		"tip":                  tipHash,
+		"genesis_hash":         gHash,
 		"mempool":              e.Mempool.Len(),
 		"mining":               e.mining,
 		"state_root":           e.State.Root(),
@@ -105,7 +125,7 @@ func (e *Engine) Status() map[string]any {
 		"genesis_supply":       GenesisSupply,
 		"block_reward_next":    BlockReward(h + 1),
 		"block_interval":       TargetInterval().String(),
-		"note":                 "chain holds MST ledger + burn proofs only; messages are DTN-only",
+		"note":                 "MSP mainnet: chain holds MST ledger + burn proofs only; messages are DTN-only",
 	}
 }
 

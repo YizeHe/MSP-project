@@ -1,0 +1,46 @@
+{
+  "header": {
+    "version": 2,
+    "prev_block": "0000000000000000000000000000000000000000000000000000000000000000",
+    "merkle_root": "095b07d57039c8a9b1e99a19449741230903c2fa4bcf58c48bdf19888cad2a62",
+    "state_root": "76819a0d34b61ce28f8dea0e0c095d3265ecfb962060b58bc0f718a88a1cc5ff",
+    "timestamp": 1783900800000000,
+    "difficulty": 1,
+    "nonce": 0,
+    "height": 0,
+    "miner_id": "network-genesis",
+    "tx_count": 2,
+    "pow_hash": "genesis"
+  },
+  "txs": [
+    {
+      "type": "network_params",
+      "sender": "network-genesis",
+      "sender_pub": "",
+      "nonce": 0,
+      "fee": 0,
+      "data": {
+        "chain_id": "msp-mainnet-1",
+        "name": "mainnet",
+        "genesis_grant": 128,
+        "max_claim_nodes": 210,
+        "miner_reward_pool": 4200000,
+        "claimable_supply": 26880,
+        "genesis_supply": 4226880,
+        "halving_interval": 210240
+      },
+      "signature": ""
+    },
+    {
+      "type": "init_alert",
+      "sender": "network-genesis",
+      "sender_pub": "",
+      "nonce": 0,
+      "fee": 0,
+      "data": {
+        "pubkey": "sF+ZZ9Z/earc8PFj/WG7UD4Ok2JUK25iOqII8rvAo/E="
+      },
+      "signature": ""
+    }
+  ]
+}

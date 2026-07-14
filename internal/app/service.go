@@ -566,7 +566,7 @@ func (s *Service) WipeSensitive() {
 }
 
 // Version of app layer.
-const Version = "1.3.2-daiban7"
+const Version = "1.4.0-mainnet"
 
 // ChainStatus public chain status.
 func (s *Service) ChainStatus() map[string]any {
@@ -574,6 +574,11 @@ func (s *Service) ChainStatus() map[string]any {
 		return map[string]any{"error": "chain not running — start mesh first"}
 	}
 	return s.Chain.Status()
+}
+
+// ChainGenesis returns frozen mainnet genesis info (no mesh required).
+func (s *Service) ChainGenesis() map[string]any {
+	return chain.GenesisInfo()
 }
 
 // ChainClaimGenesis submits genesis_claim and mines.

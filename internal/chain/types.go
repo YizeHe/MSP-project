@@ -13,14 +13,18 @@ import (
 
 const (
 	ProtocolVersion int32 = 2
-	MaxBlockBytes         = 1 << 20
-	BlockInterval         = 10 * time.Minute
-	FastBlockInterval     = 15 * time.Second
-	ConfirmDepth          = 6
+	// Mainnet identity (frozen at launch)
+	ChainID     = "msp-mainnet-1"
+	NetworkName = "mainnet"
+
+	MaxBlockBytes     = 1 << 20
+	BlockInterval     = 10 * time.Minute
+	FastBlockInterval = 15 * time.Second
+	ConfirmDepth      = 6
 	// 代办6：降低免费认领额度 — 128 MST × 210 节点；主量来自挖矿池
 	GenesisGrant    uint64 = 128
 	MaxClaimNodes   uint64 = 210
-	MinerRewardPool uint64 = 4_200_000           // 方案 B 矿工池不变
+	MinerRewardPool  uint64 = 4_200_000                     // 方案 B 矿工池不变
 	ClaimableSupply uint64 = MaxClaimNodes * GenesisGrant // 26_880
 	GenesisSupply   uint64 = MinerRewardPool + ClaimableSupply // 4_226_880
 	ClaimWindow            = 2 * 365 * 24 * time.Hour
@@ -28,8 +32,8 @@ const (
 	HalvingInterval uint64 = 210_240
 
 	// Fees (代办4/5)
-	FeeTransfer  uint64 = 1
-	FeeRegister  uint64 = 1
+	FeeTransfer   uint64 = 1
+	FeeRegister   uint64 = 1
 	BurnDirect    uint64 = 2
 	BurnBroadcast uint64 = 5
 	BurnDTN       uint64 = 10
@@ -37,12 +41,13 @@ const (
 	FeeBurnBase   uint64 = 1
 
 	// Tx types — economic only
-	TxGenesisClaim = "genesis_claim"
-	TxTransfer     = "transfer"
-	TxBurn         = "burn"
-	TxRegister     = "register"
-	TxInitAlert    = "init_alert"
-	TxCoinbase     = "coinbase"
+	TxGenesisClaim   = "genesis_claim"
+	TxTransfer       = "transfer"
+	TxBurn           = "burn"
+	TxRegister       = "register"
+	TxInitAlert      = "init_alert"
+	TxNetworkParams  = "network_params"
+	TxCoinbase       = "coinbase"
 
 	// Burn MsgType values
 	MsgDirect    = "direct"
@@ -139,7 +144,7 @@ func (tx *Transaction) Sign(priv ed25519.PrivateKey) {
 
 // Verify.
 func (tx *Transaction) Verify() error {
-	if tx.Type == TxInitAlert || tx.Type == TxCoinbase {
+	if tx.Type == TxInitAlert || tx.Type == TxCoinbase || tx.Type == TxNetworkParams {
 		return nil
 	}
 	pub, err := base64.StdEncoding.DecodeString(tx.SenderPub)
@@ -187,6 +192,18 @@ type RegisterData struct {
 // InitAlertData genesis.
 type InitAlertData struct {
 	PubKey string `json:"pubkey"`
+}
+
+// NetworkParamsData frozen mainnet economics (height 0 only).
+type NetworkParamsData struct {
+	ChainID         string `json:"chain_id"`
+	Name            string `json:"name"`
+	GenesisGrant    uint64 `json:"genesis_grant"`
+	MaxClaimNodes   uint64 `json:"max_claim_nodes"`
+	MinerRewardPool uint64 `json:"miner_reward_pool"`
+	ClaimableSupply uint64 `json:"claimable_supply"`
+	GenesisSupply   uint64 `json:"genesis_supply"`
+	HalvingInterval uint64 `json:"halving_interval"`
 }
 
 // CoinbaseData miner reward from pre-allocated pool (代办5 方案 B).

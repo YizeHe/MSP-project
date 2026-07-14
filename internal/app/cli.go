@@ -221,6 +221,10 @@ func RunCLI(dataDir string, args []string) int {
 		}
 		b, _ := json.MarshalIndent(svc.ChainStatus(), "", "  ")
 		fmt.Println(string(b))
+	case "chain-genesis", "genesis-block", "mainnet":
+		// frozen mainnet genesis — no node start required
+		b, _ := json.MarshalIndent(svc.ChainGenesis(), "", "  ")
+		fmt.Println(string(b))
 	case "chain-claim":
 		runErr = svc.ChainClaimGenesis()
 		if runErr == nil {
@@ -327,13 +331,14 @@ Mesh / P2P:
   -c mst | claim-genesis          (local DTN wallet: 128 MST, one-time; optional)
   -c block-alert | alert-info
 
-Public chain (economy only — no message content on-chain):
+Public chain / mainnet (economy only — no message content on-chain):
+  -c chain-genesis | mainnet     frozen genesis (msp-mainnet-1), no start needed
   -c chain | chain-status
   -c chain-claim | chain-mine [force]
   -c chain-transfer <to> <amount>
   -c chain-register
   send/broadcast: one-time burner + BurnTicket (RefHash=cipher) + DTN payload.
-  Chain (代办6): claim 128 MST × 210 nodes; miner pool 4.2M; total 4,226,880.
+  Mainnet: claim 128 MST × 210 nodes; miner pool 4.2M; total 4,226,880.
 
 Env:
   MSP_DATA              data directory (default ./msp-data)
