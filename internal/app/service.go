@@ -252,8 +252,8 @@ func (s *Service) StartMesh() error {
 	eng.Log = s.Log
 	eng.OnBlock = s.onChainBlock
 	n.Mesh.OnChainMsg = s.onChainP2P
-	// 代办5: receive-side BurnTicket checks (MSP_REQUIRE_TICKET=0 disables for lab)
-	n.RequireTicket = os.Getenv("MSP_REQUIRE_TICKET") != "0"
+	// Production: always require BurnTicket on chat when chain is online
+	n.RequireTicket = true
 	n.TicketValidator = func(ticketB64, payloadCipher string) error {
 		t, err := chain.DecodeTicket(ticketB64)
 		if err != nil {
@@ -261,7 +261,7 @@ func (s *Service) StartMesh() error {
 		}
 		return chain.ValidateBurnTicket(t, payloadCipher, eng.HasTxHash, time.Now())
 	}
-	// Mine empty blocks for coinbase (mainnet miner income); still only when interval ticks.
+	// PoS slot proposer loop (10 min slots; proposes when elected)
 	eng.StartMiner(true)
 	s.Chain = eng
 	s.Node = n
@@ -567,7 +567,7 @@ func (s *Service) WipeSensitive() {
 }
 
 // Version of app layer.
-const Version = "1.4.0-mainnet"
+const Version = "2.0.0-mainnet-pos"
 
 // ChainStatus public chain status.
 func (s *Service) ChainStatus() map[string]any {
@@ -582,12 +582,25 @@ func (s *Service) ChainGenesis() map[string]any {
 	return chain.GenesisInfo()
 }
 
-// ChainClaimGenesis submits genesis_claim and mines.
+// ChainClaimGenesis disabled on mainnet-2.
 func (s *Service) ChainClaimGenesis() error {
+	return fmt.Errorf("free claim disabled on %s — use stake/propose (msp -c chain-mine / chain-activate)", chain.ChainID)
+}
+
+// ChainMine proposes a PoS block when eligible (force for bootstrap).
+func (s *Service) ChainMine(force bool) (*chain.Block, error) {
+	if err := s.EnsureMesh(); err != nil {
+		return nil, err
+	}
+	return s.Chain.ProposeOnce(force)
+}
+
+// ChainStake locks MST for PoS weight.
+func (s *Service) ChainStake(amount uint64) error {
 	if err := s.EnsureMesh(); err != nil {
 		return err
 	}
-	tx, err := s.Chain.ClaimGenesis()
+	tx, err := s.Chain.Stake(amount)
 	if err != nil {
 		return err
 	}
@@ -595,16 +608,42 @@ func (s *Service) ChainClaimGenesis() error {
 		return err
 	}
 	s.broadcastTxToMesh(tx)
-	_, err = s.Chain.MineOnce(false)
-	return err
+	_, _ = s.Chain.ProposeOnce(true)
+	return nil
 }
 
-// ChainMine forces a block.
-func (s *Service) ChainMine(force bool) (*chain.Block, error) {
+// ChainUnstake unlocks stake to liquid.
+func (s *Service) ChainUnstake(amount uint64) error {
 	if err := s.EnsureMesh(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.Chain.MineOnce(force)
+	tx, err := s.Chain.Unstake(amount)
+	if err != nil {
+		return err
+	}
+	if err := s.Chain.SubmitTx(tx); err != nil {
+		return err
+	}
+	s.broadcastTxToMesh(tx)
+	_, _ = s.Chain.ProposeOnce(true)
+	return nil
+}
+
+// ChainActivate joins validator set.
+func (s *Service) ChainActivate() error {
+	if err := s.EnsureMesh(); err != nil {
+		return err
+	}
+	tx, err := s.Chain.Activate()
+	if err != nil {
+		return err
+	}
+	if err := s.Chain.SubmitTx(tx); err != nil {
+		return err
+	}
+	s.broadcastTxToMesh(tx)
+	_, _ = s.Chain.ProposeOnce(true)
+	return nil
 }
 
 // ChainTransfer MST on ledger.
@@ -649,12 +688,9 @@ func (s *Service) ChainHeight() uint64 {
 	return s.Chain.TipHeight()
 }
 
-// ClaimGenesis exposes MST claim.
+// ClaimGenesis disabled (local DTN free grant removed for production).
 func (s *Service) ClaimGenesis() error {
-	if err := s.EnsureMesh(); err != nil {
-		return err
-	}
-	return s.Node.ClaimGenesisMST()
+	return fmt.Errorf("local free MST claim disabled — earn on-chain via PoS proposing")
 }
 
 // BlockAlert shields official alert.

@@ -5,31 +5,23 @@ import (
 	"testing"
 )
 
-func TestGenesisConstantsDaiban7(t *testing.T) {
-	if GenesisGrant != 128 {
-		t.Fatalf("GenesisGrant=%d want 128", GenesisGrant)
+func TestGenesisConstantsProduction(t *testing.T) {
+	if GenesisGrant != 0 {
+		t.Fatalf("GenesisGrant=%d want 0 (no free claim)", GenesisGrant)
 	}
-	if GenesisSupply != 4_226_880 {
-		t.Fatalf("GenesisSupply=%d want 4226880", GenesisSupply)
+	if GenesisSupply != 4_200_000 {
+		t.Fatalf("GenesisSupply=%d", GenesisSupply)
 	}
 }
 
-func TestClaimGenesisGrant(t *testing.T) {
+func TestClaimGenesisDisabled(t *testing.T) {
 	dir := t.TempDir()
 	l, err := Open(filepath.Join(dir, "node"), "testid")
 	if err != nil {
 		t.Fatal(err)
 	}
-	// force path under temp
 	l.path = filepath.Join(dir, "mst-ledger.json")
-	if err := l.ClaimGenesis(true); err != nil {
-		t.Fatal(err)
-	}
-	bal, burned, claimed := l.Snapshot()
-	if !claimed || bal != GenesisGrant || burned != 0 {
-		t.Fatalf("bal=%d burned=%d claimed=%v", bal, burned, claimed)
-	}
 	if err := l.ClaimGenesis(true); err == nil {
-		t.Fatal("double claim should fail")
+		t.Fatal("claim must be disabled")
 	}
 }

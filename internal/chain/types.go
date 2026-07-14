@@ -1,5 +1,5 @@
-// Package chain: public ledger for MST economy only (代办4.md).
-// Zero message content / communication metadata on-chain.
+// Package chain: public ledger for MST economy + Ethereum-inspired PoS consensus.
+// Zero message content on-chain. Production mainnet only (no lab FAST modes).
 package chain
 
 import (
@@ -12,88 +12,106 @@ import (
 )
 
 const (
-	ProtocolVersion int32 = 2
-	// Mainnet identity (frozen at launch)
-	ChainID     = "msp-mainnet-1"
+	ProtocolVersion int32 = 3
+
+	// Mainnet identity — v2 after PoS + no free-claim redesign
+	ChainID     = "msp-mainnet-2"
 	NetworkName = "mainnet"
 
-	MaxBlockBytes     = 1 << 20
-	BlockInterval     = 10 * time.Minute
-	FastBlockInterval = 15 * time.Second
-	ConfirmDepth      = 6
-	// 代办6：降低免费认领额度 — 128 MST × 210 节点；主量来自挖矿池
-	GenesisGrant    uint64 = 128
-	MaxClaimNodes   uint64 = 210
-	MinerRewardPool  uint64 = 4_200_000                     // 方案 B 矿工池不变
-	ClaimableSupply uint64 = MaxClaimNodes * GenesisGrant // 26_880
-	GenesisSupply   uint64 = MinerRewardPool + ClaimableSupply // 4_226_880
-	ClaimWindow            = 2 * 365 * 24 * time.Hour
+	// --- PoS (Ethereum-inspired: slots, stake-weighted proposer) ---
+	// Fixed slot / block target: 10 minutes (production).
+	SlotDuration  = 10 * time.Minute
+	EpochLength   = uint64(32) // slots per epoch (ETH-like granularity)
+	// MinStake after bootstrap: ~one early block reward unit
+	MinStake uint64 = 50
+	// BootstrapSlots: first epoch — validators may activate with 0 liquid MST
+	// (cold-start: no free claim; earn rewards by proposing, then restake).
+	BootstrapSlots = EpochLength // 32 slots ≈ 5.3 hours
+
+	// --- Token economics: issuance ONLY via block rewards (no free claim) ---
+	// Pre-allocated validator reward pool (scheme B, no inflation beyond genesis allocation).
+	MinerRewardPool uint64 = 4_200_000
+	GenesisSupply   uint64 = MinerRewardPool // all MST enters via proposing rewards
+	// Legacy names kept zero so old call sites fail closed
+	GenesisGrant    uint64 = 0
+	MaxClaimNodes   uint64 = 0
+	ClaimableSupply uint64 = 0
+	ClaimWindow            = 0
+
 	// ~4 years of 10-min blocks
 	HalvingInterval uint64 = 210_240
 
-	// ConsensusMinDifficulty — network-wide minimum leading-zero bits for height>0.
-	// Local env (MSP_POW_FAST) MUST NOT lower this; peers reject softer blocks.
-	ConsensusMinDifficulty = 4
+	MaxBlockBytes = 1 << 20
+	ConfirmDepth  = 6
 
-	// Fees (代办4/5)
-	FeeTransfer   uint64 = 1
-	FeeRegister   uint64 = 1
+	// Fees
+	FeeTransfer  uint64 = 1
+	FeeRegister  uint64 = 1
+	FeeStake     uint64 = 1
+	FeeUnstake   uint64 = 1
 	BurnDirect    uint64 = 2
 	BurnBroadcast uint64 = 5
 	BurnDTN       uint64 = 10
 	BurnAlert     uint64 = 20
 	FeeBurnBase   uint64 = 1
 
-	// Tx types — economic only
-	TxGenesisClaim   = "genesis_claim"
-	TxTransfer       = "transfer"
-	TxBurn           = "burn"
-	TxRegister       = "register"
-	TxInitAlert      = "init_alert"
-	TxNetworkParams  = "network_params"
-	TxCoinbase       = "coinbase"
+	// Tx types
+	TxTransfer      = "transfer"
+	TxBurn          = "burn"
+	TxRegister      = "register"
+	TxInitAlert     = "init_alert"
+	TxNetworkParams = "network_params"
+	TxCoinbase      = "coinbase"
+	TxStake         = "stake"
+	TxUnstake       = "unstake"
+	TxActivate      = "activate" // join validator set (bond existing stake)
+	// TxGenesisClaim removed — free claim disabled on mainnet-2
 
-	// Burn MsgType values
 	MsgDirect    = "direct"
 	MsgDTN       = "dtn"
 	MsgBroadcast = "broadcast"
 	MsgAlert     = "alert"
 )
 
-// NetworkGenesis fixed.
+// NetworkGenesis fixed mainnet birth (slot 0).
 var NetworkGenesis = time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
 
-// BlockHeader.
+// BlockHeader — PoS fields (no PoW nonce mining for consensus).
 type BlockHeader struct {
-	Version    int32  `json:"version"`
-	PrevBlock  string `json:"prev_block"`
-	MerkleRoot string `json:"merkle_root"`
-	StateRoot  string `json:"state_root"`
-	Timestamp  int64  `json:"timestamp"`
-	Difficulty int    `json:"difficulty"`
-	Nonce      uint64 `json:"nonce"`
-	Height     uint64 `json:"height"`
-	MinerID    string `json:"miner_id"`
-	TxCount    uint32 `json:"tx_count"`
+	Version      int32  `json:"version"`
+	PrevBlock    string `json:"prev_block"`
+	MerkleRoot   string `json:"merkle_root"`
+	StateRoot    string `json:"state_root"`
+	Timestamp    int64  `json:"timestamp"`
+	Height       uint64 `json:"height"`
+	Slot         uint64 `json:"slot"`
+	Proposer     string `json:"proposer"` // NodeID
+	ProposerPub  string `json:"proposer_pub"`
+	ProposerSig  string `json:"proposer_sig"` // Ed25519 over SignMaterial
+	TxCount      uint32 `json:"tx_count"`
+	// Difficulty/Nonce/PoWHash retained empty for wire compat; unused in PoS
+	Difficulty int    `json:"difficulty,omitempty"`
+	Nonce      uint64 `json:"nonce,omitempty"`
 	PoWHash    string `json:"pow_hash,omitempty"`
+	MinerID    string `json:"miner_id,omitempty"` // alias of proposer for old tools
 }
 
-// Hash of header for chaining / PoW.
+// Hash of header for chaining (excludes signature).
 func (h *BlockHeader) Hash() [32]byte {
 	raw, _ := json.Marshal(struct {
-		Version    int32  `json:"version"`
-		PrevBlock  string `json:"prev_block"`
-		MerkleRoot string `json:"merkle_root"`
-		StateRoot  string `json:"state_root"`
-		Timestamp  int64  `json:"timestamp"`
-		Difficulty int    `json:"difficulty"`
-		Nonce      uint64 `json:"nonce"`
-		Height     uint64 `json:"height"`
-		MinerID     string `json:"miner_id"`
-		TxCount    uint32 `json:"tx_count"`
+		Version     int32  `json:"version"`
+		PrevBlock   string `json:"prev_block"`
+		MerkleRoot  string `json:"merkle_root"`
+		StateRoot   string `json:"state_root"`
+		Timestamp   int64  `json:"timestamp"`
+		Height      uint64 `json:"height"`
+		Slot        uint64 `json:"slot"`
+		Proposer    string `json:"proposer"`
+		ProposerPub string `json:"proposer_pub"`
+		TxCount     uint32 `json:"tx_count"`
 	}{
 		h.Version, h.PrevBlock, h.MerkleRoot, h.StateRoot,
-		h.Timestamp, h.Difficulty, h.Nonce, h.Height, h.MinerID, h.TxCount,
+		h.Timestamp, h.Height, h.Slot, h.Proposer, h.ProposerPub, h.TxCount,
 	})
 	return sha256.Sum256(raw)
 }
@@ -102,6 +120,12 @@ func (h *BlockHeader) Hash() [32]byte {
 func (h *BlockHeader) HashHex() string {
 	sum := h.Hash()
 	return hex.EncodeToString(sum[:])
+}
+
+// SignMaterial for proposer Ed25519 signature.
+func (h *BlockHeader) SignMaterial() []byte {
+	sum := h.Hash()
+	return sum[:]
 }
 
 // Block.
@@ -116,13 +140,13 @@ func (b *Block) Size() int {
 	return len(raw)
 }
 
-// Transaction economic only.
+// Transaction economic / staking.
 type Transaction struct {
 	Type      string          `json:"type"`
 	Sender    string          `json:"sender"`
 	SenderPub string          `json:"sender_pub"`
 	Nonce     uint64          `json:"nonce"`
-	Fee       uint64          `json:"fee"` // miner fee (burned from sender, credited to miner in block apply)
+	Fee       uint64          `json:"fee"`
 	Data      json.RawMessage `json:"data"`
 	Signature string          `json:"signature"`
 }
@@ -171,52 +195,88 @@ func (tx *Transaction) TxID() string {
 	return hex.EncodeToString(h[:])
 }
 
-// --- payloads (no message bodies) ---
-
 // TransferData.
 type TransferData struct {
 	To     string `json:"to"`
 	Amount uint64 `json:"amount"`
 }
 
-// BurnData — only hash of message, never content.
+// BurnData — hash only.
 type BurnData struct {
-	MsgType   string `json:"msg_type"` // direct|dtn|broadcast|alert
-	RefHash   string `json:"ref_hash"` // hex sha256 of ciphertext/packet
+	MsgType   string `json:"msg_type"`
+	RefHash   string `json:"ref_hash"`
 	Timestamp int64  `json:"timestamp"`
-	Amount    uint64 `json:"amount"` // MST burned for the message
+	Amount    uint64 `json:"amount"`
 }
 
-// RegisterData public keys on-chain once.
+// RegisterData.
 type RegisterData struct {
 	Ed25519Pub string `json:"ed25519_pub"`
 	X25519Pub  string `json:"x25519_pub"`
 }
 
-// InitAlertData genesis.
+// InitAlertData.
 type InitAlertData struct {
 	PubKey string `json:"pubkey"`
 }
 
-// NetworkParamsData frozen mainnet economics (height 0 only).
+// NetworkParamsData frozen at genesis.
 type NetworkParamsData struct {
 	ChainID         string `json:"chain_id"`
 	Name            string `json:"name"`
-	GenesisGrant    uint64 `json:"genesis_grant"`
-	MaxClaimNodes   uint64 `json:"max_claim_nodes"`
+	Consensus       string `json:"consensus"` // "pos-eth-inspired"
+	SlotSeconds     int64  `json:"slot_seconds"`
+	EpochLength     uint64 `json:"epoch_length"`
+	MinStake        uint64 `json:"min_stake"`
+	BootstrapSlots  uint64 `json:"bootstrap_slots"`
 	MinerRewardPool uint64 `json:"miner_reward_pool"`
-	ClaimableSupply uint64 `json:"claimable_supply"`
 	GenesisSupply   uint64 `json:"genesis_supply"`
 	HalvingInterval uint64 `json:"halving_interval"`
+	FreeClaim       bool   `json:"free_claim"` // always false on mainnet-2
 }
 
-// CoinbaseData miner reward from pre-allocated pool (代办5 方案 B).
+// CoinbaseData proposer reward from pool.
 type CoinbaseData struct {
 	Amount uint64 `json:"amount"`
 	Height uint64 `json:"height"`
+	Slot   uint64 `json:"slot"`
 }
 
-// BlockReward from miner pool (halving schedule, no inflation beyond genesis).
+// StakeData lock MST into validator stake.
+type StakeData struct {
+	Amount uint64 `json:"amount"`
+}
+
+// UnstakeData unlock stake to liquid balance.
+type UnstakeData struct {
+	Amount uint64 `json:"amount"`
+}
+
+// ActivateData join/refresh validator set.
+type ActivateData struct {
+	Ed25519Pub string `json:"ed25519_pub"`
+}
+
+// Account ledger.
+type Account struct {
+	NodeID     string `json:"node_id"`
+	Balance    uint64 `json:"balance"` // liquid
+	Stake      uint64 `json:"stake"`   // bonded for PoS
+	Nonce      uint64 `json:"nonce"`
+	Burned     uint64 `json:"burned"`
+	RegHeight  uint64 `json:"reg_height"`
+	Ed25519Pub string `json:"ed25519_pub,omitempty"`
+	X25519Pub  string `json:"x25519_pub,omitempty"`
+	Active     bool   `json:"active,omitempty"` // in validator set
+}
+
+// EncodeData JSON.
+func EncodeData(v any) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return b
+}
+
+// BlockReward from pool (halving schedule).
 func BlockReward(height uint64) uint64 {
 	if height == 0 {
 		return 0
@@ -230,25 +290,6 @@ func BlockReward(height uint64) uint64 {
 		base /= 2
 	}
 	return base
-}
-
-// Account ledger.
-type Account struct {
-	NodeID    string `json:"node_id"`
-	Balance   uint64 `json:"balance"`
-	Nonce     uint64 `json:"nonce"`
-	Burned    uint64 `json:"burned"`
-	Claimed   bool   `json:"claimed"`
-	RegHeight uint64 `json:"reg_height"`
-	// optional registered keys
-	Ed25519Pub string `json:"ed25519_pub,omitempty"`
-	X25519Pub  string `json:"x25519_pub,omitempty"`
-}
-
-// EncodeData JSON.
-func EncodeData(v any) json.RawMessage {
-	b, _ := json.Marshal(v)
-	return b
 }
 
 // BurnAmountForMsgType.
@@ -267,8 +308,21 @@ func BurnAmountForMsgType(msgType string) uint64 {
 	}
 }
 
-// RefHashFromBytes sha256 hex of packet bytes.
+// RefHashFromBytes sha256 hex.
 func RefHashFromBytes(raw []byte) string {
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
+}
+
+// SlotAtTime maps wall clock to slot index since NetworkGenesis.
+func SlotAtTime(t time.Time) uint64 {
+	if t.Before(NetworkGenesis) {
+		return 0
+	}
+	return uint64(t.Sub(NetworkGenesis) / SlotDuration)
+}
+
+// SlotStartTime returns UTC start of slot.
+func SlotStartTime(slot uint64) time.Time {
+	return NetworkGenesis.Add(time.Duration(slot) * SlotDuration)
 }

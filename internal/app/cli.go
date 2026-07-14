@@ -204,9 +204,6 @@ func RunCLI(dataDir string, args []string) int {
 		fmt.Println(string(b))
 	case "claim-genesis", "genesis":
 		runErr = svc.ClaimGenesis()
-		if runErr == nil {
-			fmt.Println("genesis MST claimed")
-		}
 	case "block-alert":
 		runErr = svc.BlockAlert()
 		if runErr == nil {
@@ -228,15 +225,44 @@ func RunCLI(dataDir string, args []string) int {
 		fmt.Println(string(b))
 	case "chain-claim":
 		runErr = svc.ChainClaimGenesis()
-		if runErr == nil {
-			fmt.Println("chain genesis_claim mined")
+	case "chain-mine", "chain-propose":
+		force := len(rest) == 0 || rest[0] == "force" || rest[0] == "1"
+		// default force=true for solo operators during bootstrap
+		if len(rest) > 0 && rest[0] == "noforce" {
+			force = false
 		}
-	case "chain-mine":
-		force := len(rest) > 0 && rest[0] == "force"
 		b, err := svc.ChainMine(force)
 		runErr = err
 		if err == nil {
-			fmt.Printf("mined height=%d hash=%s txs=%d\n", b.Header.Height, b.Header.HashHex()[:16], len(b.Txs))
+			fmt.Printf("proposed height=%d slot=%d hash=%s txs=%d\n",
+				b.Header.Height, b.Header.Slot, b.Header.HashHex()[:16], len(b.Txs))
+		}
+	case "chain-stake":
+		if len(rest) < 1 {
+			runErr = fmt.Errorf("usage: chain-stake <amount>")
+			break
+		}
+		var amt uint64
+		fmt.Sscanf(rest[0], "%d", &amt)
+		runErr = svc.ChainStake(amt)
+		if runErr == nil {
+			fmt.Println("staked", amt)
+		}
+	case "chain-unstake":
+		if len(rest) < 1 {
+			runErr = fmt.Errorf("usage: chain-unstake <amount>")
+			break
+		}
+		var amt uint64
+		fmt.Sscanf(rest[0], "%d", &amt)
+		runErr = svc.ChainUnstake(amt)
+		if runErr == nil {
+			fmt.Println("unstaked", amt)
+		}
+	case "chain-activate":
+		runErr = svc.ChainActivate()
+		if runErr == nil {
+			fmt.Println("validator activated")
 		}
 	case "chain-transfer":
 		if len(rest) < 2 {
@@ -329,24 +355,23 @@ Mesh / P2P:
   -c block|unblock <node_id>
   -c verify-fingerprint <node_id> <fp16>
   -c trust
-  -c mst | claim-genesis          (local DTN wallet: 128 MST, one-time; optional)
+  -c mst                          local DTN wallet snapshot (no free claim)
   -c block-alert | alert-info
 
-Public chain / mainnet (economy only — no message content on-chain):
-  -c chain-genesis | mainnet     frozen genesis (msp-mainnet-1), no start needed
+Public chain / mainnet-2 (PoS, economy only — no message content on-chain):
+  -c chain-genesis | mainnet      frozen genesis (msp-mainnet-2)
   -c chain | chain-status
-  -c chain-claim | chain-mine [force]
+  -c chain-mine | chain-propose   propose block when elected (bootstrap: force)
+  -c chain-activate               join validator set
+  -c chain-stake <amt> | chain-unstake <amt>
   -c chain-transfer <to> <amount>
   -c chain-register
-  send/broadcast: one-time burner + BurnTicket (RefHash=cipher) + DTN payload.
-  Mainnet: claim 128 MST × 210 nodes; miner pool 4.2M; total 4,226,880.
+  No free claim. Issuance only via 10-minute PoS proposer rewards (pool 4.2M).
+  send/broadcast: burner + BurnTicket + DTN.
 
 Env:
   MSP_DATA              data directory (default ./msp-data)
   MSP_PASSPHRASE        optional identity encryption passphrase
-  MSP_POW_FAST=1        fast PoW targets (~2s) for lab
-  MSP_CHAIN_FAST=1      short block interval for lab
-  MSP_REQUIRE_TICKET=0  disable receive-side BurnTicket enforcement (lab)
   SOCKS5_PROXY          socks5://127.0.0.1:9050 for Tor onion seeds
   ALL_PROXY             same
 

@@ -1,79 +1,85 @@
-# MSP Mainnet
+# MSP Mainnet 2 — Production PoS
 
-**Status:** live (code-defined)  
-**Network:** `mainnet`  
-**Chain ID:** `msp-mainnet-1`  
-**Version:** `1.4.0-mainnet`
+**Version:** `2.0.0-mainnet-pos`  
+**Chain ID:** `msp-mainnet-2`  
+**Consensus:** Ethereum-inspired **Proof of Stake** (slots, stake-weighted proposer election, Ed25519 block seals)  
+**Block / slot time:** **10 minutes** (fixed)  
+**Free claim:** **disabled** (no 210×128 airdrop)  
+**Issuance:** only via proposer coinbase from pre-allocated pool (**4,200,000 MST**)
+
+> Old `msp-mainnet-1` (PoW + free claim) is **obsolete**. Use a **fresh** `MSP_DATA` directory.
+
+## What “Ethereum-like” means here
+
+| Ethereum idea | MSP mainnet-2 |
+|---------------|---------------|
+| Slot time | 10 minutes (`SlotDuration`) |
+| Epoch | 32 slots |
+| Validators | Accounts with `Active=true` and bonded `Stake` |
+| Proposer election | `SHA256(prevHash \|\| slot)` → stake-weighted pick (equal RR if stake=0) |
+| Block seal | Proposer **Ed25519** signature over header hash |
+| Issuance | Scheduled coinbase `BlockReward(height)` from pool (halving) |
+| Free airdrop | **None** |
+
+**Not yet** (honest scope): full Casper FFG finality, attestations/committees, LMD-GHOST fork choice, slashing proofs, validator deposits of 32 ETH semantics. This is a **production-oriented PoS core**, not a line-for-line Ethereum clone.
 
 ## Genesis
 
-- **Time:** `2026-07-13T00:00:00Z` (`NetworkGenesis`)
-- **Height:** 0
-- **Hash:** `7305b0979062171e2ee24d7e909efb588014f8c4f28fc0ed576fa9a2c0f4e351`
-- **Merkle:** `095b07d57039c8a9b1e99a19449741230903c2fa4bcf58c48bdf19888cad2a62`
-- **State root:** `76819a0d34b61ce28f8dea0e0c095d3265ecfb962060b58bc0f718a88a1cc5ff`
-- **Canonical file:** [`genesis/mainnet.json`](genesis/mainnet.json)
-- **Contents:**
-  1. `network_params` — frozen economics (128×210 claim, 4.2M miner pool, total 4,226,880 MST)
-  2. `init_alert` — network Alert authority public key
-
-Inspect without starting a node:
+- Time: `2026-07-13T00:00:00Z`
+- Hash: `e170f62c27e603720ae740edfed485781d72af5f5920cdabae8b2aee27ecabf3`
+- File: [`genesis/mainnet.json`](genesis/mainnet.json)
+- Txs: `network_params` (free_claim=false, pos-eth-inspired) + `init_alert`
 
 ```bash
 msp -c chain-genesis
-# aliases: -c mainnet | -c genesis-block
 ```
 
-## Launch a mainnet node
+## Bootstrap (cold start — no free MST)
+
+1. `msp -c init` / `msp -c start` or `msp -c mine` (headless)
+2. First epoch (`BootstrapSlots=32`): any node may **propose** and auto-**activate** with 0 stake
+3. Proposer earns **50 MST** coinbase (while pool lasts / pre-halving)
+4. `msp -c chain-stake <amt>` to bond stake → higher election weight
+5. After bootstrap: activation requires `Stake >= MinStake` (50 MST)
 
 ```bash
-# fresh data directory (old lab chains with pre-mainnet genesis will be rejected)
-export MSP_DATA=./msp-mainnet-data   # PowerShell: $env:MSP_DATA=".\msp-mainnet-data"
-
+export MSP_DATA=./msp-mainnet-data   # fresh dir
 msp -c init
-msp -c start
-msp -c chain              # network=mainnet, chain_id=msp-mainnet-1, genesis_hash=...
-msp -c chain-claim        # optional free claim (128 MST, 210 slots network-wide)
-msp -c chain-mine force   # mine for rewards from the pre-allocated pool
+msp -c mine                          # headless proposer loop
+# other terminal:
+msp -c chain-mine                    # force propose if elected / bootstrap
+msp -c chain
+msp -c chain-stake 50
 ```
 
-> **Lab overrides** (`MSP_POW_FAST=1`, `MSP_CHAIN_FAST=1`) still work for local testing but do **not** change genesis or chain_id. Production operators should leave them unset (10-minute target block interval).
+## Production flags
 
-## Validation rules
+**Removed** lab shortcuts (no longer affect consensus):
 
-- Every node installs the same height-0 block from `BuildGenesis()` / `MainnetGenesis()`.
-- Loading a store whose height-0 hash ≠ mainnet genesis **fails** (prevents mixing lab forks).
-- Incoming blocks at height 0 must pass `ValidateMainnetGenesis`.
-- **Consensus difficulty** for height>0 is fixed at `ConsensusMinDifficulty` (4 leading zero bits). Local `MSP_*_FAST` only speeds **this node's** miner tick rate / DTN message PoW — it cannot make softer blocks acceptable to honest peers.
-- **Coinbase** amount must equal `min(BlockReward(height), pool_remaining)`. Inflated coinbase is rejected.
+- ~~`MSP_POW_FAST`~~ — ignored for production difficulty targets on DTN adaptive PoW
+- ~~`MSP_CHAIN_FAST`~~ — chain slots always 10 minutes
+- ~~`MSP_REQUIRE_TICKET=0`~~ — tickets always required when chain is on
 
-### Honest status of multi-node consensus (v1.4)
+## Security model (open source)
 
-| Rule | Status |
-|------|--------|
-| Fixed genesis + chain_id | ✅ |
-| Link prev / height / merkle / state root | ✅ |
-| Min PoW difficulty on blocks | ✅ |
-| Coinbase schedule cap | ✅ |
-| Broadcast block/tx to neighbors | ✅ (mesh flood) |
-| Difficulty adjustment algorithm (Bitcoin-style) | ❌ not yet (fixed min bits) |
-| Heaviest-chain / reorg on forks | ❌ partial (tip-extension only) |
-| Header-first sync / IBD | ❌ not yet |
+| Attack | Result |
+|--------|--------|
+| Edit local code to print free claim | Your fork only; mainnet-2 nodes reject `genesis_claim` |
+| Propose when not elected | Rejected (`errBadProposer`) |
+| Inflated coinbase | Rejected |
+| Soft “difficulty” / env FAST | Not used for block consensus (PoS signatures) |
+| Majority runs modified rules | Social/client consensus — same as any open chain |
 
-Open source does **not** mean “edit your local env and print free MST for the network.” Peers that run this consensus code reject soft-PoW and fat-coinbase blocks. A modified client only fools itself unless a majority of peers also run the broken rules.
+## CLI map
 
-## Economics (unchanged from 代办6)
-
-| Parameter | Value |
-|-----------|-------|
-| Total supply | 4,226,880 MST (no inflation) |
-| Claim pool | 26,880 (210 × 128) |
-| Miner pool | 4,200,000 |
-| Claim window | 2 years from network genesis |
-
-## Messages
-
-Still **DTN-only**. The chain never carries message bodies — only MST ledger and burn proofs (+ BurnTicket pre-confirmation off-chain / in mempool).
+| Command | Role |
+|---------|------|
+| `chain-genesis` | Show frozen genesis |
+| `chain` | Height, slot, stake, validators |
+| `chain-mine` / `chain-propose` | Propose block |
+| `chain-activate` | Join validator set |
+| `chain-stake` / `chain-unstake` | Bond / unbond |
+| `chain-transfer` / `chain-register` | Economy |
 
 ## License
 

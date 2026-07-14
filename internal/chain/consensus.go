@@ -1,25 +1,12 @@
 package chain
 
 import (
-	"encoding/hex"
 	"fmt"
-	"os"
 	"time"
-
-	"github.com/YizeHe/MSP-project/internal/pow"
 )
 
-// RequiredDifficulty is the consensus PoW difficulty for a block height.
-// Independent of local MSP_*_FAST env — those only affect miner tick rate / DTN message PoW.
-func RequiredDifficulty(height uint64) int {
-	if height == 0 {
-		return 1 // genesis fixed
-	}
-	return ConsensusMinDifficulty
-}
-
-// ValidateBlock checks PoW, links, merkle, size, consensus difficulty (not full state).
-func ValidateBlock(b *Block, prev *BlockHeader) error {
+// ValidateBlock PoS consensus checks (no block PoW).
+func ValidateBlock(b *Block, prev *BlockHeader, st *State) error {
 	if b.Size() > MaxBlockBytes {
 		return errBlockTooLarge
 	}
@@ -27,7 +14,6 @@ func ValidateBlock(b *Block, prev *BlockHeader) error {
 		return errBadMerkle
 	}
 	if prev == nil {
-		// genesis — must match frozen mainnet
 		if b.Header.Height != 0 {
 			return errBadHeight
 		}
@@ -39,17 +25,32 @@ func ValidateBlock(b *Block, prev *BlockHeader) error {
 	if b.Header.Height != prev.Height+1 {
 		return errBadHeight
 	}
-	// Consensus difficulty: miner cannot advertise an easier target
-	need := RequiredDifficulty(b.Header.Height)
-	if b.Header.Difficulty < need {
-		return fmt.Errorf("%w: got %d need >= %d", errBadDifficulty, b.Header.Difficulty, need)
+	if b.Header.Slot <= prev.Slot && b.Header.Height > 0 {
+		// slots must be non-decreasing; allow equal only if height 0
+		if b.Header.Slot < prev.Slot {
+			return errBadSlot
+		}
 	}
-	// PoW must satisfy the difficulty claimed in the header (and thus >= network min)
-	mat := headerPoWMaterial(&b.Header)
-	if !pow.Verify(mat, b.Header.Nonce, b.Header.Difficulty, b.Header.PoWHash) {
-		return errBadPoW
+	// timestamp within slot window (±1 slot skew)
+	slotStart := SlotStartTime(b.Header.Slot)
+	slotEnd := slotStart.Add(SlotDuration)
+	ts := time.UnixMicro(b.Header.Timestamp)
+	if ts.Before(slotStart.Add(-SlotDuration)) || ts.After(slotEnd.Add(SlotDuration)) {
+		return fmt.Errorf("%w: timestamp outside slot window", errBadSlot)
 	}
-	// Coinbase schedule (if present) must match consensus reward
+	// proposer election + signature
+	if err := VerifyProposerSig(&b.Header); err != nil {
+		return err
+	}
+	if b.Header.Proposer == "" {
+		return errBadProposer
+	}
+	// election relative to parent state (before this block)
+	if st != nil {
+		if !MayPropose(st, prev.HashHex(), b.Header.Proposer, b.Header.Slot, b.Header.Height) {
+			return fmt.Errorf("%w: not elected for slot %d", errBadProposer, b.Header.Slot)
+		}
+	}
 	if err := validateCoinbaseInBlock(b); err != nil {
 		return err
 	}
@@ -74,73 +75,29 @@ func validateCoinbaseInBlock(b *Block) error {
 			return fmt.Errorf("%w: coinbase must be first tx", errBadCoinbase)
 		}
 		var d CoinbaseData
-		if err := jsonUnmarshal(b.Txs[i].Data, &d); err != nil {
+		if err := unmarshalJSON(b.Txs[i].Data, &d); err != nil {
 			return errBadCoinbase
 		}
-		// Amount may be lower only when pool is smaller — full check in state with pool;
-		// here enforce upper bound by schedule (cannot mint above BlockReward).
 		if d.Amount > want {
 			return fmt.Errorf("%w: amount %d > schedule %d", errBadCoinbase, d.Amount, want)
 		}
-		if d.Height != 0 && d.Height != b.Header.Height {
-			return fmt.Errorf("%w: height field mismatch", errBadCoinbase)
+		// coinbase sender must be proposer
+		if b.Txs[i].Sender != b.Header.Proposer && b.Header.Proposer != "" {
+			return fmt.Errorf("%w: coinbase sender != proposer", errBadCoinbase)
 		}
 	}
-	// height>0 blocks should include coinbase when reward > 0 (pool may be empty later)
 	if want > 0 && seen == 0 {
 		return fmt.Errorf("%w: missing coinbase", errBadCoinbase)
 	}
 	return nil
 }
 
-func headerPoWMaterial(h *BlockHeader) []byte {
-	// exclude nonce and pow_hash
-	cp := *h
-	cp.Nonce = 0
-	cp.PoWHash = ""
-	raw, _ := jsonMarshal(cp)
-	return raw
-}
-
-// MineBlock fills nonce until PoW valid at the given difficulty bits.
-func MineBlock(b *Block, bits int) time.Duration {
-	need := RequiredDifficulty(b.Header.Height)
-	if bits < need {
-		bits = need
-	}
-	b.Header.Difficulty = bits
-	mat := headerPoWMaterial(&b.Header)
-	nonce, hash, took := pow.Mine(mat, bits)
-	b.Header.Nonce = nonce
-	b.Header.PoWHash = hash
-	return took
-}
-
-// TargetInterval is local miner loop cadence only (not a consensus rule).
-// MSP_CHAIN_FAST / MSP_POW_FAST speed up how often THIS node tries to mine,
-// not the difficulty other nodes will accept.
+// TargetInterval always production 10 minutes (no lab shortcuts).
 func TargetInterval() time.Duration {
-	if os.Getenv("MSP_CHAIN_FAST") == "1" || os.Getenv("MSP_POW_FAST") == "1" {
-		return FastBlockInterval
-	}
-	return BlockInterval
+	return SlotDuration
 }
 
-// DefaultMineBits returns consensus mining difficulty for new blocks.
-// Local FAST env does not soften chain PoW (would be rejected by honest peers).
-func DefaultMineBits() int {
-	return ConsensusMinDifficulty
-}
-
-func jsonMarshal(v any) ([]byte, error) {
-	return marshalJSON(v)
-}
-
-func jsonUnmarshal(data []byte, v any) error {
-	return unmarshalJSON(data, v)
-}
-
-// HashBytes helper.
-func HashBytes(b []byte) string {
-	return hex.EncodeToString(b)
+// CurrentSlot wall-clock slot.
+func CurrentSlot() uint64 {
+	return SlotAtTime(time.Now().UTC())
 }

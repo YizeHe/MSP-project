@@ -50,31 +50,18 @@ type Network struct {
 	fastMode    bool
 }
 
-// DefaultNetwork creates adaptive controller.
+// DefaultNetwork creates adaptive controller (production targets only).
 func DefaultNetwork() *Network {
-	fast := os.Getenv("MSP_POW_FAST") == "1" || os.Getenv("MSP_POW_FAST") == "true"
-	n := &Network{
-		bitsNormal: 3,
-		bitsAlert:  5,
+	return &Network{
+		bitsNormal: 4,
+		bitsAlert:  6,
 		maxSamples: 32,
-		fastMode:   fast,
+		fastMode:   false,
 	}
-	if !fast {
-		// higher starting point for production-like cost
-		n.bitsNormal = 4
-		n.bitsAlert = 6
-	}
-	return n
 }
 
-// Target for mode.
+// Target for mode (production: 2 min normal / 20 min alert).
 func (n *Network) Target(mode Mode) time.Duration {
-	if n.fastMode {
-		if mode == ModeAlert {
-			return 8 * time.Second
-		}
-		return 2 * time.Second
-	}
 	if mode == ModeAlert {
 		return TargetAlert
 	}

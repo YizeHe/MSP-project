@@ -10,24 +10,22 @@ import (
 	"time"
 )
 
-// State account ledger + miner reward pool.
+// State account ledger + reward pool + validator flags.
 type State struct {
-	mu                sync.RWMutex
-	Accounts          map[string]*Account `json:"accounts"`
-	TotalClaimed      uint64              `json:"total_claimed"`
-	MinerPoolRemaining uint64             `json:"miner_pool_remaining"`
-	Height            uint64              `json:"height"`
-	Tip               string              `json:"tip"`
-	pendingMinerFees   uint64
-	// known burn tx hashes for ticket validation (recent)
-	burnTxSeen map[string]bool
+	mu                 sync.RWMutex
+	Accounts           map[string]*Account `json:"accounts"`
+	MinerPoolRemaining uint64              `json:"miner_pool_remaining"`
+	Height             uint64              `json:"height"`
+	Tip                string              `json:"tip"`
+	pendingMinerFees    uint64
+	burnTxSeen         map[string]bool
 }
 
-// NewState empty with full miner pool.
+// NewState empty with full reward pool.
 func NewState() *State {
 	return &State{
 		Accounts:           make(map[string]*Account),
-		MinerPoolRemaining:  MinerRewardPool,
+		MinerPoolRemaining: MinerRewardPool,
 		burnTxSeen:         make(map[string]bool),
 	}
 }
@@ -37,7 +35,6 @@ func (s *State) Clone() *State {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	ns := NewState()
-	ns.TotalClaimed = s.TotalClaimed
 	ns.MinerPoolRemaining = s.MinerPoolRemaining
 	ns.Height = s.Height
 	ns.Tip = s.Tip
@@ -51,7 +48,7 @@ func (s *State) Clone() *State {
 	return ns
 }
 
-// Root.
+// Root includes accounts + pool + active stakes.
 func (s *State) Root() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -61,7 +58,7 @@ func (s *State) Root() string {
 	}
 	sort.Strings(keys)
 	h := sha256.New()
-	_, _ = fmt.Fprintf(h, "claimed:%d|pool:%d|height:%d|", s.TotalClaimed, s.MinerPoolRemaining, s.Height)
+	_, _ = fmt.Fprintf(h, "pool:%d|height:%d|pos:v2|", s.MinerPoolRemaining, s.Height)
 	for _, k := range keys {
 		raw, _ := json.Marshal(s.Accounts[k])
 		sum := sha256.Sum256(raw)
@@ -80,7 +77,7 @@ func (s *State) GetAccount(id string) Account {
 	return Account{NodeID: id}
 }
 
-// HasBurnTx true if burn tx id was applied.
+// HasBurnTx.
 func (s *State) HasBurnTx(txHash string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -102,28 +99,36 @@ func (s *State) applyTxLocked(tx *Transaction, blockTime time.Time, height uint6
 	case TxInitAlert:
 		return nil
 	case TxNetworkParams:
-		// height-0 only; parameters are constants — accept if well-formed
 		if height != 0 {
-			return fmt.Errorf("network_params only allowed at height 0")
+			return fmt.Errorf("network_params only at height 0")
 		}
 		var d NetworkParamsData
 		if err := json.Unmarshal(tx.Data, &d); err != nil {
 			return err
 		}
 		if d.ChainID != ChainID || d.Name != NetworkName {
-			return fmt.Errorf("network params chain_id/name mismatch")
+			return fmt.Errorf("network params mismatch")
+		}
+		if d.FreeClaim {
+			return fmt.Errorf("free_claim must be false on mainnet-2")
 		}
 		return nil
 	case TxCoinbase:
 		return s.applyCoinbase(tx, height)
-	case TxGenesisClaim:
-		return s.applyGenesisClaim(tx, blockTime)
+	case "genesis_claim":
+		return errClaimDisabled
 	case TxTransfer:
 		return s.applyTransfer(tx)
 	case TxBurn:
 		return s.applyBurn(tx)
 	case TxRegister:
 		return s.applyRegister(tx, height)
+	case TxStake:
+		return s.applyStake(tx)
+	case TxUnstake:
+		return s.applyUnstake(tx)
+	case TxActivate:
+		return s.applyActivate(tx, height)
 	default:
 		return errUnknownTx
 	}
@@ -143,8 +148,6 @@ func (s *State) applyCoinbase(tx *Transaction, height uint64) error {
 	if err := json.Unmarshal(tx.Data, &d); err != nil {
 		return err
 	}
-	// Consensus: reward is exactly min(BlockReward(height), pool remaining).
-	// Miners cannot mint above the schedule by stuffing CoinbaseData.Amount.
 	want := BlockReward(height)
 	if want > s.MinerPoolRemaining {
 		want = s.MinerPoolRemaining
@@ -159,34 +162,9 @@ func (s *State) applyCoinbase(tx *Transaction, height uint64) error {
 		return nil
 	}
 	s.MinerPoolRemaining -= want
+	// Proposer receives to liquid balance (can stake later)
 	m := s.ensure(tx.Sender)
 	m.Balance += want
-	return nil
-}
-
-func (s *State) applyGenesisClaim(tx *Transaction, blockTime time.Time) error {
-	if blockTime.After(NetworkGenesis.Add(ClaimWindow)) {
-		return errClaimClosed
-	}
-	a := s.ensure(tx.Sender)
-	if a.Claimed {
-		return errAlreadyClaimed
-	}
-	// 代办6: hard cap on number of free claims (210 nodes × 128 MST)
-	claimCount := s.TotalClaimed / GenesisGrant
-	if claimCount >= MaxClaimNodes {
-		return errSupplyExhausted
-	}
-	if s.TotalClaimed+GenesisGrant > ClaimableSupply {
-		return errSupplyExhausted
-	}
-	if tx.Nonce != a.Nonce {
-		return errBadNonce
-	}
-	a.Balance += GenesisGrant
-	a.Claimed = true
-	a.Nonce++
-	s.TotalClaimed += GenesisGrant
 	return nil
 }
 
@@ -260,17 +238,108 @@ func (s *State) applyRegister(tx *Transaction, height uint64) error {
 	if fee == 0 {
 		fee = FeeRegister
 	}
+	// bootstrap: allow register with 0 fee if no balance yet and height small
 	if from.Balance < fee {
-		return errInsufficient
+		if height > BootstrapSlots || fee != FeeRegister {
+			return errInsufficient
+		}
+		// free register during bootstrap only
+		fee = 0
+	} else {
+		from.Balance -= fee
+		s.pendingMinerFees += fee
 	}
-	from.Balance -= fee
 	from.Nonce++
 	from.Ed25519Pub = d.Ed25519Pub
 	from.X25519Pub = d.X25519Pub
 	if from.RegHeight == 0 {
 		from.RegHeight = height
 	}
+	return nil
+}
+
+func (s *State) applyStake(tx *Transaction) error {
+	var d StakeData
+	if err := json.Unmarshal(tx.Data, &d); err != nil {
+		return err
+	}
+	if d.Amount == 0 {
+		return fmt.Errorf("stake amount required")
+	}
+	from := s.ensure(tx.Sender)
+	if tx.Nonce != from.Nonce {
+		return errBadNonce
+	}
+	fee := tx.Fee
+	if fee == 0 {
+		fee = FeeStake
+	}
+	need := d.Amount + fee
+	if from.Balance < need {
+		return errInsufficient
+	}
+	from.Balance -= need
+	from.Stake += d.Amount
+	from.Nonce++
 	s.pendingMinerFees += fee
+	return nil
+}
+
+func (s *State) applyUnstake(tx *Transaction) error {
+	var d UnstakeData
+	if err := json.Unmarshal(tx.Data, &d); err != nil {
+		return err
+	}
+	if d.Amount == 0 {
+		return fmt.Errorf("unstake amount required")
+	}
+	from := s.ensure(tx.Sender)
+	if tx.Nonce != from.Nonce {
+		return errBadNonce
+	}
+	if from.Stake < d.Amount {
+		return errInsufficient
+	}
+	fee := tx.Fee
+	if fee == 0 {
+		fee = FeeUnstake
+	}
+	// fee from liquid or from unstaked amount
+	if from.Balance >= fee {
+		from.Balance -= fee
+	} else if d.Amount > fee {
+		d.Amount -= fee
+	} else {
+		return errInsufficient
+	}
+	from.Stake -= d.Amount
+	from.Balance += d.Amount
+	from.Nonce++
+	s.pendingMinerFees += fee
+	if from.Stake == 0 {
+		from.Active = false
+	}
+	return nil
+}
+
+func (s *State) applyActivate(tx *Transaction, height uint64) error {
+	var d ActivateData
+	if err := json.Unmarshal(tx.Data, &d); err != nil {
+		return err
+	}
+	from := s.ensure(tx.Sender)
+	if tx.Nonce != from.Nonce {
+		return errBadNonce
+	}
+	// After bootstrap, require MinStake
+	if height > BootstrapSlots && from.Stake < MinStake {
+		return errMinStake
+	}
+	if d.Ed25519Pub != "" {
+		from.Ed25519Pub = d.Ed25519Pub
+	}
+	from.Active = true
+	from.Nonce++
 	return nil
 }
 
@@ -288,8 +357,13 @@ func (s *State) ApplyBlock(b *Block) error {
 			return fmt.Errorf("tx %d (%s): %w", i, b.Txs[i].Type, err)
 		}
 	}
-	if s.pendingMinerFees > 0 && b.Header.MinerID != "" && b.Header.MinerID != "network-genesis" {
-		m := s.ensure(b.Header.MinerID)
+	// fees to proposer
+	proposer := b.Header.Proposer
+	if proposer == "" {
+		proposer = b.Header.MinerID
+	}
+	if s.pendingMinerFees > 0 && proposer != "" && proposer != "network-genesis" {
+		m := s.ensure(proposer)
 		m.Balance += s.pendingMinerFees
 	}
 	s.Height = b.Header.Height

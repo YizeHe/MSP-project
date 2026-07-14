@@ -6,82 +6,56 @@
 
 **English** | [中文](README-cn.md) | [日本語](README-ja.md) | [Français](README-fr.md) | [Русский](README-ru.md) | [Español](README-es.md) | [العربية](README-ar.md) | [Deutsch](README-de.md)
 
-A **100% AI-edited** censorship-resistant, end-to-end encrypted messaging prototype.
+**100% AI-edited** censorship-resistant, end-to-end encrypted messaging with a **production PoS economic chain**.
 
 | Layer | Role |
 |-------|------|
-| **DTN / UDP P2P mesh** | Encrypted messages, flood, store-carry-forward |
-| **Public chain** | MST ledger + burn proofs only (no message bodies) |
-| **Signaling seed** | Peer discovery & **hole punch** only (no chat relay) |
+| **DTN / UDP P2P** | Encrypted messages, flood, store-carry-forward |
+| **Public chain** | MST ledger + burn proofs; **no message bodies** |
+| **Consensus** | **Ethereum-inspired PoS** — 10 min slots, stake-weighted proposers |
+| **Signaling** | Hole punch only (no chat relay) |
+
+## Version / Mainnet
+
+`2.0.0-mainnet-pos` · branch **`dev`** · chain id **`msp-mainnet-2`**
+
+| | |
+|--|--|
+| Free claim (210×128) | **Removed** — no airdrop |
+| Issuance | Proposer coinbase only (pool **4,200,000** MST) |
+| Slot / block time | **10 minutes** |
+| Docs | [MAINNET.md](MAINNET.md) · [genesis/mainnet.json](genesis/mainnet.json) · [index.html](index.html) |
 
 ## Documentation
 
 | Doc | Language |
 |-----|----------|
-| **[index.html](index.html)** | Project landing page (English) |
-| **[Guide/guide.md](Guide/guide.md)** | English (default) |
+| **[index.html](index.html)** | Landing page |
+| **[Guide/guide.md](Guide/guide.md)** | English guide |
 | **[Guide/guide-cn.md](Guide/guide-cn.md)** | 中文 |
-| [MSP白皮书.md](MSP白皮书.md) | Protocol whitepaper (Chinese) |
-| `代办.md` … `代办7.md` | Iteration specs (AI collaboration traces, kept in-repo) |
-
-## Version / Mainnet
-
-`1.4.0-mainnet` — prefer branch **`dev`**.
-
-| | |
-|--|--|
-| **Network** | `mainnet` |
-| **Chain ID** | `msp-mainnet-1` |
-| **Genesis** | [`genesis/mainnet.json`](genesis/mainnet.json) · [`MAINNET.md`](MAINNET.md) |
-| **CLI** | `msp -c chain-genesis` |
-
-## One-line architecture
-
-```
-Seal ciphertext → anonymous burner burn → BurnTicket → DTN send
-Chain: MST ledger + burn hash · Signaling: hole punch only
-```
-
-## Tokenomics (代办6)
-
-| Parameter | Value |
-|-----------|-------|
-| Total supply (no inflation) | **4,226,880** MST |
-| Free claim pool | **26,880** (210 nodes × **128** MST) |
-| Miner reward pool | **4,200,000** MST |
-| Claim window | 2 years |
-
-Message burn costs (approx.): direct 2+1 · dtn 10+1 · broadcast 5+1 · alert 20+1 MST.
+| [MAINNET.md](MAINNET.md) | Production mainnet-2 |
 
 ## Quick start
 
-```powershell
-# Build into bin/ (binaries are gitignored)
-go build -o bin/msp.exe ./cmd/msp
-go build -o bin/msp-seed.exe ./cmd/msp-seed
-
-$env:MSP_POW_FAST = "1"
-$env:MSP_CHAIN_FAST = "1"
-.\bin\msp.exe -c init
-.\bin\msp.exe -c start
-.\bin\msp.exe -c claim-genesis   # optional local DTN wallet +128
-.\bin\msp.exe -c chain-claim     # on-chain +128 (max 210 slots)
-```
-
-Linux / macOS:
-
 ```bash
+git clone https://github.com/YizeHe/MSP-project.git
+cd MSP-project && git checkout dev
 go build -o bin/msp ./cmd/msp
-go build -o bin/msp-seed ./cmd/msp-seed
-./bin/msp -c init && ./bin/msp -c start
+
+export MSP_DATA=./msp-mainnet-data   # fresh directory required for mainnet-2
+./bin/msp -c init
+./bin/msp -c mine                    # headless PoS proposer
+# another terminal:
+./bin/msp -c chain-mine              # propose when eligible
+./bin/msp -c chain
+./bin/msp -c chain-stake 50
 ```
 
-Full tutorial (CLI, dual-node, troubleshooting): **[Guide/guide.md](Guide/guide.md)**.
+Windows: build `bin/msp.exe` the same way.
 
 ## Tests
 
-```powershell
-$env:MSP_POW_FAST = "1"; $env:MSP_CHAIN_FAST = "1"
+```bash
 go test ./... -count=1 -timeout 180s
 ```
 
@@ -89,6 +63,6 @@ go test ./... -count=1 -timeout 180s
 
 [MIT](LICENSE) © 2026 YizeHe / MSP-project contributors.
 
-## Project ethos
+## Ethos
 
-This repository proudly ships as **100% AI-edited**: specs (`代办*`), `.learnings/`, and agent traces are **not** scrubbed from history.
+**100% AI-edited** — specs (`代办*`), `.learnings/`, and agent traces stay in-repo.

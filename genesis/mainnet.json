@@ -1,16 +1,18 @@
 {
   "header": {
-    "version": 2,
+    "version": 3,
     "prev_block": "0000000000000000000000000000000000000000000000000000000000000000",
-    "merkle_root": "095b07d57039c8a9b1e99a19449741230903c2fa4bcf58c48bdf19888cad2a62",
-    "state_root": "76819a0d34b61ce28f8dea0e0c095d3265ecfb962060b58bc0f718a88a1cc5ff",
+    "merkle_root": "b25d24043ed2bed5c9d8c23ef9ec90429c9e5adc63391c7e6d2f87a920a825d7",
+    "state_root": "7ee18b195ffa59fe0c60f24e2885464ada042eae1f16cc6b73153f0ed42a5c33",
     "timestamp": 1783900800000000,
-    "difficulty": 1,
-    "nonce": 0,
     "height": 0,
-    "miner_id": "network-genesis",
+    "slot": 0,
+    "proposer": "network-genesis",
+    "proposer_pub": "",
+    "proposer_sig": "",
     "tx_count": 2,
-    "pow_hash": "genesis"
+    "pow_hash": "genesis",
+    "miner_id": "network-genesis"
   },
   "txs": [
     {
@@ -20,14 +22,17 @@
       "nonce": 0,
       "fee": 0,
       "data": {
-        "chain_id": "msp-mainnet-1",
+        "chain_id": "msp-mainnet-2",
         "name": "mainnet",
-        "genesis_grant": 128,
-        "max_claim_nodes": 210,
+        "consensus": "pos-eth-inspired",
+        "slot_seconds": 600,
+        "epoch_length": 32,
+        "min_stake": 50,
+        "bootstrap_slots": 32,
         "miner_reward_pool": 4200000,
-        "claimable_supply": 26880,
-        "genesis_supply": 4226880,
-        "halving_interval": 210240
+        "genesis_supply": 4200000,
+        "halving_interval": 210240,
+        "free_claim": false
       },
       "signature": ""
     },

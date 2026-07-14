@@ -25,46 +25,38 @@
 
 ## 版本
 
-`1.3.2-daiban7` — 开发请用分支 **`dev`**。
+`2.0.0-mainnet-pos` — 分支 **`dev`** · 链 ID **`msp-mainnet-2`**
+
+| | |
+|--|--|
+| 免费认领 210×128 | **已取消** |
+| 产出 | **仅 PoS 出块奖励**（池 4,200,000 MST） |
+| 出块 | **10 分钟** slot，权益加权出块人 |
+| 说明 | [MAINNET.md](MAINNET.md) |
 
 ## 一句话架构
 
 ```
 密封密文 → burner 匿名 burn → BurnTicket → DTN 发送
-公链：MST 账本 + burn 哈希 · 信令：仅打洞
+公链：PoS 账本 + burn 哈希 · 信令：仅打洞
 ```
-
-## 代币经济（代办6）
-
-| 参数 | 值 |
-|------|-----|
-| 总量（不增发） | **4,226,880** MST |
-| 认领池 | **26,880**（210 节点 × **128** MST） |
-| 矿工奖励池 | **4,200,000** MST |
-| 认领窗口 | 2 年 |
-
-消息 burn 约：direct 2+1 · dtn 10+1 · broadcast 5+1 · alert 20+1 MST。
 
 ## 快速开始
 
 ```powershell
 go build -o bin/msp.exe ./cmd/msp
-go build -o bin/msp-seed.exe ./cmd/msp-seed
-
-$env:MSP_POW_FAST = "1"
-$env:MSP_CHAIN_FAST = "1"
+$env:MSP_DATA = ".\msp-mainnet-data"   # 主网-2 请用新目录
 .\bin\msp.exe -c init
-.\bin\msp.exe -c start
-.\bin\msp.exe -c claim-genesis   # 可选：本地 DTN 钱包 +128
-.\bin\msp.exe -c chain-claim     # 链上 +128（最多 210 名额）
+.\bin\msp.exe -c mine                  # 常驻出块
+.\bin\msp.exe -c chain-mine            # 提议区块
+.\bin\msp.exe -c chain-stake 50
 ```
 
-完整教程（CLI、双节点、排错）：**[Guide/guide-cn.md](Guide/guide-cn.md)**。
+完整教程：**[Guide/guide-cn.md](Guide/guide-cn.md)** · **[MAINNET.md](MAINNET.md)**
 
 ## 测试
 
 ```powershell
-$env:MSP_POW_FAST = "1"; $env:MSP_CHAIN_FAST = "1"
 go test ./... -count=1 -timeout 180s
 ```
 

@@ -12,11 +12,11 @@ import (
 	"time"
 )
 
-// GenesisSupply total MST ever (no inflation). Aligned with chain 代办6/7.
-const GenesisSupply uint64 = 4_226_880
+// GenesisSupply mirrors chain mainnet-2 (issuance via PoS only).
+const GenesisSupply uint64 = 4_200_000
 
-// GenesisGrant per identity claim (sum of grants must not exceed supply).
-const GenesisGrant uint64 = 128
+// GenesisGrant free local claim disabled (0). Earn MST on-chain via proposing.
+const GenesisGrant uint64 = 0
 
 // CostPerMessage base burn cost (scaled by difficulty).
 const CostPerMessage uint64 = 1
@@ -70,20 +70,9 @@ func (l *Ledger) Save() error {
 	return os.WriteFile(l.path, raw, 0o600)
 }
 
-// ClaimGenesis one-time grant (simulates genesis PoW allocation).
-// Requires powDone=true after caller mined genesis proof.
+// ClaimGenesis disabled on production (no free MST).
 func (l *Ledger) ClaimGenesis(powDone bool) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.Claimed {
-		return errors.New("genesis already claimed")
-	}
-	if !powDone {
-		return errors.New("genesis claim requires valid PoW")
-	}
-	l.Balance += GenesisGrant
-	l.Claimed = true
-	return nil
+	return errors.New("free MST claim disabled — use on-chain PoS proposing")
 }
 
 // CanSpend checks balance.
