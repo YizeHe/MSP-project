@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/YizeHe/MSP-project/internal/identity"
+	"github.com/YizeHe/MSP-project/internal/pow"
 )
 
 func testEnv(t *testing.T) {
@@ -271,6 +272,60 @@ func TestCoinbasePool(t *testing.T) {
 	}
 	if tk.Amount < BurnDTN {
 		t.Fatalf("ticket amount %d", tk.Amount)
+	}
+}
+
+func TestConsensusRejectsSoftDifficultyAndFatCoinbase(t *testing.T) {
+	e, id := openTestEngine(t)
+	claimAndMine(t, e)
+	// craft a soft-difficulty block tip+1
+	tip := e.Store.Tip()
+	b := &Block{
+		Header: BlockHeader{
+			Version: ProtocolVersion, PrevBlock: tip.Header.HashHex(),
+			Timestamp: tip.Header.Timestamp + 1, Difficulty: 1, // below consensus min
+			Height: tip.Header.Height + 1, MinerID: id.NodeID, TxCount: 1,
+		},
+	}
+	reward := BlockReward(b.Header.Height)
+	b.Txs = []Transaction{{
+		Type: TxCoinbase, Sender: id.NodeID, SenderPub: id.Ed25519Pub,
+		Data: EncodeData(CoinbaseData{Amount: reward, Height: b.Header.Height}),
+	}}
+	b.Header.MerkleRoot = MerkleRootFromTxs(b.Txs)
+	// mine at soft difficulty (attacker)
+	MineBlock(b, 1)
+	// force header difficulty back to 1 after mine (MineBlock bumps to min)
+	b.Header.Difficulty = 1
+	mat := headerPoWMaterial(&b.Header)
+	// re-mine truly at 1 for valid soft pow
+	n, h, _ := pow.Mine(mat, 1)
+	b.Header.Nonce, b.Header.PoWHash = n, h
+	// state root
+	cl := e.State.Clone()
+	_ = cl.ApplyBlock(b)
+	b.Header.StateRoot = cl.Root()
+	if err := e.AcceptBlock(b); err == nil {
+		t.Fatal("expected reject soft difficulty")
+	}
+
+	// fat coinbase: mine valid difficulty but amount too high
+	b2 := &Block{
+		Header: BlockHeader{
+			Version: ProtocolVersion, PrevBlock: tip.Header.HashHex(),
+			Timestamp: tip.Header.Timestamp + 2, Difficulty: ConsensusMinDifficulty,
+			Height: tip.Header.Height + 1, MinerID: id.NodeID,
+		},
+	}
+	b2.Txs = []Transaction{{
+		Type: TxCoinbase, Sender: id.NodeID, SenderPub: id.Ed25519Pub,
+		Data: EncodeData(CoinbaseData{Amount: reward + 999999, Height: b2.Header.Height}),
+	}}
+	b2.Header.TxCount = 1
+	b2.Header.MerkleRoot = MerkleRootFromTxs(b2.Txs)
+	MineBlock(b2, ConsensusMinDifficulty)
+	if err := e.AcceptBlock(b2); err == nil {
+		t.Fatal("expected reject fat coinbase")
 	}
 }
 

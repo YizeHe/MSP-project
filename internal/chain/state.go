@@ -143,18 +143,24 @@ func (s *State) applyCoinbase(tx *Transaction, height uint64) error {
 	if err := json.Unmarshal(tx.Data, &d); err != nil {
 		return err
 	}
-	if d.Amount == 0 {
+	// Consensus: reward is exactly min(BlockReward(height), pool remaining).
+	// Miners cannot mint above the schedule by stuffing CoinbaseData.Amount.
+	want := BlockReward(height)
+	if want > s.MinerPoolRemaining {
+		want = s.MinerPoolRemaining
+	}
+	if d.Amount != want {
+		return fmt.Errorf("%w: amount %d want %d at height %d", errBadCoinbase, d.Amount, want, height)
+	}
+	if d.Height != 0 && d.Height != height {
+		return fmt.Errorf("%w: height field", errBadCoinbase)
+	}
+	if want == 0 {
 		return nil
 	}
-	if d.Amount > s.MinerPoolRemaining {
-		d.Amount = s.MinerPoolRemaining
-	}
-	if d.Amount == 0 {
-		return nil
-	}
-	s.MinerPoolRemaining -= d.Amount
+	s.MinerPoolRemaining -= want
 	m := s.ensure(tx.Sender)
-	m.Balance += d.Amount
+	m.Balance += want
 	return nil
 }
 

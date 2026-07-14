@@ -352,23 +352,25 @@ func (e *Engine) MineOnce(force bool) (*Block, error) {
 		prevHash = tip.Header.HashHex()
 		height = tip.Header.Height + 1
 	}
-	// coinbase from miner reward pool (代办5 方案 B)
+	// coinbase from miner reward pool (代办5 方案 B) — amount is consensus-fixed
 	reward := BlockReward(height)
-	if reward > 0 {
-		// capped by remaining pool on clone
-		cl := e.State.Clone()
-		if reward > cl.MinerPoolRemaining {
-			reward = cl.MinerPoolRemaining
-		}
+	cl := e.State.Clone()
+	if reward > cl.MinerPoolRemaining {
+		reward = cl.MinerPoolRemaining
 	}
 	body := make([]Transaction, 0, len(txs)+1)
-	if reward > 0 && height > 0 {
-		cb := Transaction{
-			Type: TxCoinbase, Sender: e.ID.NodeID, SenderPub: e.ID.Ed25519Pub,
-			Nonce: 0, Fee: 0,
-			Data: EncodeData(CoinbaseData{Amount: reward, Height: height}),
+	// height>0 always include coinbase when schedule/pool says so (including amount 0 after era)
+	if height > 0 && (reward > 0 || BlockReward(height) == 0) {
+		// when schedule is 0, still allow empty-reward era without coinbase tx;
+		// when schedule > 0, coinbase required with exact amount
+		if BlockReward(height) > 0 {
+			cb := Transaction{
+				Type: TxCoinbase, Sender: e.ID.NodeID, SenderPub: e.ID.Ed25519Pub,
+				Nonce: 0, Fee: 0,
+				Data: EncodeData(CoinbaseData{Amount: reward, Height: height}),
+			}
+			body = append(body, cb)
 		}
-		body = append(body, cb)
 	}
 	clone := e.State.Clone()
 	tnow := time.Now()

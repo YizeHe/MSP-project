@@ -12,6 +12,8 @@ var (
 	errUnknownTx       = errors.New("unknown tx type")
 	errBlockTooLarge   = errors.New("block exceeds size limit")
 	errBadPoW          = errors.New("invalid block PoW")
+	errBadDifficulty   = errors.New("block difficulty below network consensus minimum")
+	errBadCoinbase     = errors.New("invalid coinbase reward")
 	errBadPrev         = errors.New("prev block mismatch")
 	errBadHeight       = errors.New("height mismatch")
 	errBadMerkle       = errors.New("merkle root mismatch")

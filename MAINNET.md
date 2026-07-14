@@ -44,6 +44,23 @@ msp -c chain-mine force   # mine for rewards from the pre-allocated pool
 - Every node installs the same height-0 block from `BuildGenesis()` / `MainnetGenesis()`.
 - Loading a store whose height-0 hash ≠ mainnet genesis **fails** (prevents mixing lab forks).
 - Incoming blocks at height 0 must pass `ValidateMainnetGenesis`.
+- **Consensus difficulty** for height>0 is fixed at `ConsensusMinDifficulty` (4 leading zero bits). Local `MSP_*_FAST` only speeds **this node's** miner tick rate / DTN message PoW — it cannot make softer blocks acceptable to honest peers.
+- **Coinbase** amount must equal `min(BlockReward(height), pool_remaining)`. Inflated coinbase is rejected.
+
+### Honest status of multi-node consensus (v1.4)
+
+| Rule | Status |
+|------|--------|
+| Fixed genesis + chain_id | ✅ |
+| Link prev / height / merkle / state root | ✅ |
+| Min PoW difficulty on blocks | ✅ |
+| Coinbase schedule cap | ✅ |
+| Broadcast block/tx to neighbors | ✅ (mesh flood) |
+| Difficulty adjustment algorithm (Bitcoin-style) | ❌ not yet (fixed min bits) |
+| Heaviest-chain / reorg on forks | ❌ partial (tip-extension only) |
+| Header-first sync / IBD | ❌ not yet |
+
+Open source does **not** mean “edit your local env and print free MST for the network.” Peers that run this consensus code reject soft-PoW and fat-coinbase blocks. A modified client only fools itself unless a majority of peers also run the broken rules.
 
 ## Economics (unchanged from 代办6)
 

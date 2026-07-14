@@ -31,6 +31,10 @@ const (
 	// ~4 years of 10-min blocks
 	HalvingInterval uint64 = 210_240
 
+	// ConsensusMinDifficulty — network-wide minimum leading-zero bits for height>0.
+	// Local env (MSP_POW_FAST) MUST NOT lower this; peers reject softer blocks.
+	ConsensusMinDifficulty = 4
+
 	// Fees (代办4/5)
 	FeeTransfer   uint64 = 1
 	FeeRegister   uint64 = 1
