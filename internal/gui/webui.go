@@ -40,6 +40,13 @@ func Run(dataDir string) error {
 	sub, _ := fs.Sub(staticFS, ".")
 	fileServer := http.FileServer(http.FS(sub))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Browsers always request /favicon.ico; avoid noisy 404 in console.
+		if r.URL.Path == "/favicon.ico" {
+			w.Header().Set("Content-Type", "image/svg+xml")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#3d9cf0"/><text x="16" y="22" text-anchor="middle" font-size="14" font-family="sans-serif" fill="#fff" font-weight="700">M</text></svg>`))
+			return
+		}
 		if r.URL.Path == "/" {
 			b, _ := staticFS.ReadFile("index.html")
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
