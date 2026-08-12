@@ -216,14 +216,16 @@ func (e *Engine) HasTxHash(hash string) bool {
 	return e.State.HasBurnTx(hash)
 }
 
-// IssueTicketForBurn.
+// IssueTicketForBurn only for burns already in mempool or confirmed.
 func (e *Engine) IssueTicketForBurn(burnTx *Transaction) (*BurnTicket, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !e.Mempool.Has(burnTx.TxID()) && !e.State.HasBurnTx(burnTx.TxID()) {
-		if burnTx.Type != TxBurn {
-			return nil, fmt.Errorf("burn tx not in mempool")
-		}
+	if burnTx == nil || burnTx.Type != TxBurn {
+		return nil, fmt.Errorf("not a burn tx")
+	}
+	txid := burnTx.TxID()
+	if !e.Mempool.Has(txid) && !e.State.HasBurnTx(txid) {
+		return nil, fmt.Errorf("burn tx not in mempool or chain")
 	}
 	hint := e.Store.Height() + 1
 	return IssueBurnTicket(burnTx, e.ID.NodeID, e.ID.EdPrivate(), hint)
@@ -266,11 +268,13 @@ func (e *Engine) AnonymousBurn(msgType, refHash string) (ticket *BurnTicket, bur
 	// After propose, transfer should be applied if we were proposer
 	e.mu.Lock()
 	bBal := e.State.GetAccount(burnerID).Balance
-	e.mu.Unlock()
 	if bBal < fund {
-		// still pending — burn from main as fallback is NOT anonymous; return error
+		// do not leave orphan funding txs that mine into a discarded burner key
+		e.Mempool.Remove(xfer.TxID())
+		e.mu.Unlock()
 		return nil, nil, fmt.Errorf("burner not funded yet (wait for block including transfer)")
 	}
+	e.mu.Unlock()
 
 	burnTx = &Transaction{
 		Type: TxBurn, Sender: burnerID, SenderPub: burnerPubB64,

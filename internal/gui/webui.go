@@ -78,6 +78,15 @@ func Run(dataDir string) error {
 
 func handleAPI(w http.ResponseWriter, r *http.Request, svc *app.Service) {
 	w.Header().Set("Content-Type", "application/json")
+	// Localhost GUI only: reject cross-site Origin (basic CSRF mitigation)
+	if o := r.Header.Get("Origin"); o != "" {
+		if !strings.HasPrefix(o, "http://127.0.0.1") && !strings.HasPrefix(o, "http://localhost") &&
+			!strings.HasPrefix(o, "https://127.0.0.1") && !strings.HasPrefix(o, "https://localhost") {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "forbidden origin"})
+			return
+		}
+	}
 	path := strings.TrimPrefix(r.URL.Path, "/api/")
 	writeErr := func(err error) {
 		w.WriteHeader(400)

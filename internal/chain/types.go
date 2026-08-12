@@ -170,13 +170,17 @@ func (tx *Transaction) Sign(priv ed25519.PrivateKey) {
 	tx.Signature = base64.StdEncoding.EncodeToString(sig)
 }
 
-// Verify.
+// Verify checks signature and binds Sender to SenderPub (anti-impersonation).
 func (tx *Transaction) Verify() error {
 	if tx.Type == TxInitAlert || tx.Type == TxCoinbase || tx.Type == TxNetworkParams {
 		return nil
 	}
 	pub, err := base64.StdEncoding.DecodeString(tx.SenderPub)
 	if err != nil || len(pub) != ed25519.PublicKeySize {
+		return errInvalidSig
+	}
+	// CRITICAL: prevent crafting txs with victim Sender + attacker key
+	if id := nodeIDFromPubBytes(pub); id != tx.Sender {
 		return errInvalidSig
 	}
 	sig, err := base64.StdEncoding.DecodeString(tx.Signature)

@@ -660,9 +660,6 @@ func (n *Node) onP2PPacket(fromNode string, raw []byte, _ *net.UDPAddr) {
 	}
 	p.Hops++
 	now := n.Clock.Now()
-	if p.ClockSampleUs > 0 {
-		n.Clock.Observe(p.ClockSampleUs)
-	}
 	if p.DiffHintBits > 0 {
 		// soft absorb peer difficulty
 	}
@@ -677,6 +674,18 @@ func (n *Node) onP2PPacket(fromNode string, raw []byte, _ *net.UDPAddr) {
 	checkClock := n.enforceClock && n.Clock.SampleCount() > 0
 	if err := p.Verify(now, checkClock); err != nil {
 		return
+	}
+	// Only trust clock samples from authenticated packets (anti clock poisoning)
+	if p.ClockSampleUs > 0 {
+		// clamp: ignore samples more than 10 minutes off local wall clock
+		wall := time.Now().UnixMicro()
+		delta := p.ClockSampleUs - wall
+		if delta < 0 {
+			delta = -delta
+		}
+		if delta <= int64(10*time.Minute/time.Microsecond) {
+			n.Clock.Observe(p.ClockSampleUs)
+		}
 	}
 	if !n.Dedup.Add(k) {
 		return

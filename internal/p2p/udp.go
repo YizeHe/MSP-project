@@ -2,12 +2,15 @@
 package p2p
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/YizeHe/MSP-project/internal/protocol"
 )
 
 const (
@@ -412,6 +415,16 @@ func (m *Mesh) onPunchOK(env Envelope, addr *net.UDPAddr) {
 }
 
 func (m *Mesh) touch(nodeID, ed, x string, addr *net.UDPAddr, punched bool) {
+	// Bind From to Ed25519 pubkey when provided (anti neighbor spoof / key poison)
+	if ed != "" {
+		raw, err := base64.StdEncoding.DecodeString(ed)
+		if err != nil || len(raw) != 32 {
+			return
+		}
+		if protocol.NodeIDFromPub(raw) != nodeID {
+			return
+		}
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	nb, ok := m.neighbors[nodeID]
@@ -422,8 +435,13 @@ func (m *Mesh) touch(nodeID, ed, x string, addr *net.UDPAddr, punched bool) {
 	if ed != "" {
 		nb.EdPub = ed
 	}
+	// Prefer not to overwrite a known XPub with empty; only set when non-empty
 	if x != "" {
-		nb.XPub = x
+		// if we already have an XPub from a prior signed path, keep it unless empty
+		if nb.XPub == "" || nb.XPub == x {
+			nb.XPub = x
+		}
+		// if conflicting XPub from unsigned envelope, ignore the new key (keep punched addr)
 	}
 	nb.Addr = addr
 	nb.LastSeen = time.Now()

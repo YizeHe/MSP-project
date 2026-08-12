@@ -21,4 +21,6 @@ var (
 	errDupTx           = errors.New("duplicate transaction")
 	errMinStake        = errors.New("stake below minimum for activation")
 	errNotValidator    = errors.New("not an active validator")
+	errAmountOverflow  = errors.New("amount+fee overflow")
+	errAmountTooLarge  = errors.New("amount exceeds supply cap")
 )

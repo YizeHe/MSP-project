@@ -181,3 +181,60 @@ func TestSlotHelpers(t *testing.T) {
 		t.Fatal(s1)
 	}
 }
+
+func TestRejectSenderPubImpersonation(t *testing.T) {
+	e, id := openTestEngine(t)
+	if _, err := e.ProposeOnce(true); err != nil {
+		t.Fatal(err)
+	}
+	// attacker key signs a transfer claiming victim's Sender
+	atk, _ := identity.Generate()
+	tx := &Transaction{
+		Type: TxTransfer, Sender: id.NodeID, SenderPub: atk.Ed25519Pub,
+		Nonce: e.Account(id.NodeID).Nonce, Fee: FeeTransfer,
+		Data: EncodeData(TransferData{To: atk.NodeID, Amount: 1}),
+	}
+	tx.Sign(atk.EdPrivate())
+	if err := tx.Verify(); err == nil {
+		t.Fatal("expected reject: sender not bound to sender_pub")
+	}
+	if err := e.SubmitTx(tx); err == nil {
+		t.Fatal("expected submit reject")
+	}
+}
+
+func TestRejectAmountOverflow(t *testing.T) {
+	e, id := openTestEngine(t)
+	if _, err := e.ProposeOnce(true); err != nil {
+		t.Fatal(err)
+	}
+	tx := &Transaction{
+		Type: TxTransfer, Sender: id.NodeID, SenderPub: id.Ed25519Pub,
+		Nonce: e.Account(id.NodeID).Nonce, Fee: 1,
+		Data: EncodeData(TransferData{To: id.NodeID, Amount: ^uint64(0)}),
+	}
+	tx.Sign(id.EdPrivate())
+	if err := e.SubmitTx(tx); err == nil {
+		t.Fatal("expected overflow/too-large reject")
+	}
+}
+
+func TestIssueTicketRequiresSubmittedBurn(t *testing.T) {
+	e, id := openTestEngine(t)
+	if _, err := e.ProposeOnce(true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.ProposeOnce(true); err != nil {
+		t.Fatal(err)
+	}
+	// fabricates burn not in mempool
+	fake := &Transaction{
+		Type: TxBurn, Sender: id.NodeID, SenderPub: id.Ed25519Pub,
+		Nonce: 99, Fee: FeeBurnBase,
+		Data: EncodeData(BurnData{MsgType: MsgDTN, RefHash: "ab", Amount: BurnDTN, Timestamp: 1}),
+	}
+	fake.Sign(id.EdPrivate())
+	if _, err := e.IssueTicketForBurn(fake); err == nil {
+		t.Fatal("expected reject unsigned/unsubmitted burn ticket")
+	}
+}

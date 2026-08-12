@@ -181,7 +181,13 @@ func (s *State) applyTransfer(tx *Transaction) error {
 	if fee == 0 {
 		fee = FeeTransfer
 	}
-	total := d.Amount + fee
+	if d.Amount > GenesisSupply {
+		return errAmountTooLarge
+	}
+	total, ok := safeAddUint64(d.Amount, fee)
+	if !ok {
+		return errAmountOverflow
+	}
 	if from.Balance < total {
 		return errInsufficient
 	}
@@ -213,7 +219,13 @@ func (s *State) applyBurn(tx *Transaction) error {
 	if tx.Nonce != from.Nonce {
 		return errBadNonce
 	}
-	total := amount + fee
+	if amount > GenesisSupply {
+		return errAmountTooLarge
+	}
+	total, ok := safeAddUint64(amount, fee)
+	if !ok {
+		return errAmountOverflow
+	}
 	if from.Balance < total {
 		return errInsufficient
 	}
@@ -274,7 +286,13 @@ func (s *State) applyStake(tx *Transaction) error {
 	if fee == 0 {
 		fee = FeeStake
 	}
-	need := d.Amount + fee
+	if d.Amount > GenesisSupply {
+		return errAmountTooLarge
+	}
+	need, ok := safeAddUint64(d.Amount, fee)
+	if !ok {
+		return errAmountOverflow
+	}
 	if from.Balance < need {
 		return errInsufficient
 	}
